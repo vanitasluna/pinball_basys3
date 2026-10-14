@@ -94,6 +94,8 @@ See `docs/DESIGN_NOTES.md` for the layout, moving-object integration, game-feel 
 
 ## Architecture and project knowledge
 
+Read [the detailed code and rebuilding guide](docs/PROJECT_CODE_GUIDE.md), or its [printable PDF](output/pdf/EE2026_Pinball_Code_Guide.pdf), for module connections, EE2026 concepts, worked examples, display timing, verification and a staged plan for writing a new FPGA game. Guide sources and regeneration instructions are in [docs/guide_source](docs/guide_source/README.md).
+
 The routed build before this visual polish is preserved under `build/pre_visual_polish/`, including its programming file, checkpoint, reports, RTL, previews and manifest. The preceding build before blue protection feedback remains under `build/pre_protection_blue/`.
 
 The visual-polish build before circuit-cat reactions is preserved under `build/pre_anime_fx/`, including its programming file, checkpoint, reports, RTL and manifest.
