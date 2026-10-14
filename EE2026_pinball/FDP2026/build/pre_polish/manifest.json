@@ -1,0 +1,162 @@
+{
+  "part": "xc7a35tcpg236-1",
+  "tool": "Vivado 2025.2",
+  "date": "2026-10-14",
+  "timezone": "Asia/Singapore",
+  "build_completed_local": "2026-10-14T01:28:10",
+  "build_log": "build/menu_mode_final.log",
+  "setup_slack_ns": 0.215,
+  "hold_slack_ns": 0.071,
+  "setup_failing_endpoints": 0,
+  "hold_failing_endpoints": 0,
+  "drc_errors": 0,
+  "drc_advisory_warnings": 157,
+  "unconstrained_internal_endpoints": 0,
+  "resources": {
+    "Slice LUTs": {
+      "used": 16086,
+      "available": 20800,
+      "percent": 77.34
+    },
+    "Slice Registers": {
+      "used": 3529,
+      "available": 41600,
+      "percent": 8.48
+    },
+    "DSPs": {
+      "used": 44,
+      "available": 90,
+      "percent": 48.89
+    },
+    "Block RAM Tile": {
+      "used": 0,
+      "available": 50,
+      "percent": 0.0
+    },
+    "Bonded IOB": {
+      "used": 60,
+      "available": 106,
+      "percent": 56.6
+    },
+    "BUFGCTRL": {
+      "used": 4,
+      "available": 32,
+      "percent": 12.5
+    }
+  },
+  "vga_resolution": [
+    800,
+    600
+  ],
+  "vga_pixel_clock_mhz": 40,
+  "oled_resolution": [
+    96,
+    64
+  ],
+  "oled_connector": "JC",
+  "score_unit_points": 0.5,
+  "physics_hz": 240,
+  "moving_bumper_speed_pixels_per_second": 3.75,
+  "play_modes": [
+    1,
+    2
+  ],
+  "mode_selector": "Menu U press or ball-mode-row mouse click; captured at game start",
+  "collision_instances": 1,
+  "physics_commit_clocks": {
+    "one_ball": 16,
+    "two_balls": 33
+  },
+  "two_ball_hit_separation_clocks": 4,
+  "final_pair_drain_delay_clocks": 6,
+  "launch_power": {
+    "meter_min": 0,
+    "meter_max": 63,
+    "minimum_shot": 16,
+    "steps_per_second": 60,
+    "cycle_seconds": 2.1,
+    "mode": "continuous triangular sweep"
+  },
+  "moving_bumper_paths": {
+    "left": {
+      "x": 26,
+      "y_min": 22,
+      "y_max": 28
+    },
+    "right": {
+      "y": 22,
+      "x_min": 58,
+      "x_max": 66
+    }
+  },
+  "previous_lut_percent": 77.41,
+  "bitstream_bytes": 1489887,
+  "bitstream_sha256": "47de70193ba05b826f32650bcc46241fd14ef04a03b7de355abd7cfe4463fa98",
+  "source_sha256": {
+    "FDP2026.srcs/constrs_1/new/Basys3_Master.xdc": "8e3d7f49e45d5deff78c74729df9b13e7206012b2988ab9af7f196e0dfebbd07",
+    "FDP2026.srcs/constrs_1/new/Pinball_Physics_Timing.xdc": "6f1581190cf0a65696c8d60e748a645897e256706f1192e6f313bbc56dc48b6d",
+    "FDP2026.srcs/sources_1/new/Mouse_Control.vhd": "f57b58c4c35b21e569b0d279a2014c41f19a57bf10990338463e0480944d9ca7",
+    "FDP2026.srcs/sources_1/new/My_Top_Module.v": "27871323d3838426f424e77de21ab4c5733fbccff3c246ece642f9508210caac",
+    "FDP2026.srcs/sources_1/new/Oled_Display.v": "f0f7b4a7a5b65a40598ccbb8f985ac826e788ce381c613409e92cea52528ffe5",
+    "FDP2026.srcs/sources_1/new/pinball_collision.v": "46cc3430e804b47412f512884ef2753a4d51fa1c6df1f4a3fde835d6a3c1c768",
+    "FDP2026.srcs/sources_1/new/pinball_effects.v": "6630807c19a24cd9665534980e9b12dddad135a0c4e96b37c1172962976bd786",
+    "FDP2026.srcs/sources_1/new/pinball_game.v": "fc26502d547e0952881cde9a3393dc8f2daef3fc887890fdf79cbb076c897ac8",
+    "FDP2026.srcs/sources_1/new/pinball_input.v": "c63d291aedc1757b2114bde6e94fb9828649c6f64aebcb77a4fb8c8b1bd86873",
+    "FDP2026.srcs/sources_1/new/pinball_physics.v": "4c3d2103d723f65f6460341bcd322c191d1ac1712df95a08bb1eea14c269bd91",
+    "FDP2026.srcs/sources_1/new/pinball_renderer.v": "a1e5e57d4cacb423745f3a061cedd8a17afeee211995a8f2fd5c0af07513ad18",
+    "FDP2026.srcs/sources_1/new/pinball_sevenseg.v": "3726ca4214c41dfaa6f6c924aa6577d26bc5d83ccbfab669d875d99be96ea2aa",
+    "FDP2026.srcs/sources_1/new/pinball_vga.v": "17a90900ce71d162ab3de668194dec163582e433127610e7bf4c599e7f7322f2",
+    "FDP2026.srcs/sources_1/new/pinball_vga_clock.v": "8bfe59804098b59b9acd46e4705a4e53103c61072246347d95ae40aec9f6c798",
+    "FDP2026.srcs/sources_1/new/pinball_vga_renderer.v": "0536cdfe40532976ed84015f7995a95abe152fd9eb921aceb9e48a87977e2a35",
+    "FDP2026.srcs/sources_1/new/Ps2Interface.vhd": "7c2af6f51bd408549435bbbbafcb9d33053a98a1a63bdc1046c9872f52c499eb",
+    "FDP2026.xpr": "f1006f7cc611b9f04e05aed06c2a44ca5da69dabdac8a67d8a76f5126059612b"
+  },
+  "simulations_passed": [
+    "tb_input",
+    "tb_game",
+    "tb_physics",
+    "tb_multiball",
+    "tb_two_ball_game",
+    "tb_collision",
+    "tb_vga",
+    "tb_vga_clock",
+    "tb_renderer",
+    "tb_effects",
+    "tb_vga_renderer",
+    "tb_top"
+  ],
+  "simulations_rerun_this_revision": [
+    "tb_top",
+    "tb_renderer",
+    "tb_vga_renderer",
+    "tb_two_ball_game"
+  ],
+  "testbench_sha256": {
+    "tests/tb_input.sv": "80c207e26afef076e33f36d9d1e657964dc94a1de7621c8b49060808b4be700f",
+    "tests/tb_game.sv": "3c531e30caad5c432ff53649c8f0597ae03793dd91b6706224ccc2d45e19fa14",
+    "tests/tb_physics.sv": "204592772c5f0ae9300d1a405ba15727851e96f6c3fe833810bbf935dcc6a16e",
+    "tests/tb_multiball.sv": "0d74157f232a41501f199828f67be9e218c5be6c46eb9cf4cc2087bfcbed3a6b",
+    "tests/tb_two_ball_game.sv": "1330ad47e446bd769ddc83fba1022ab65877ec536011f9196de368e57ed94146",
+    "tests/tb_collision.sv": "3fbbb36c6c858d5d1e5bdc74c2675155b1fb9616fcd59dd7bfe9c4db444ab62e",
+    "tests/tb_vga.sv": "c735560a5c59e8f8c0cc5a1efa62d4190843f6d45f444427b9d91797c9eee14e",
+    "tests/tb_vga_clock.sv": "0501d21dff8e23fe1dc8e0338f6eb63c4f9482d2f665beaa46423f38658076de",
+    "tests/tb_renderer.sv": "bfdf758105b1a1525e894105818a1fc79aed393e1c7a542f2d30e07c8747a04a",
+    "tests/tb_effects.sv": "c178b3748422faedc896c6ad0c2f996b26ad02d72fc4643855e3d60626dc9a8d",
+    "tests/tb_vga_renderer.sv": "d6e2f5c0c49e35bef406288ba088b4dc56d8c90b8dc777469385191d355c8b18",
+    "tests/tb_top.sv": "2a8552b8dca253116d9b3f72cfb5766007229487a3318053eb40d89108e1b385"
+  },
+  "simulation_log_sha256": {
+    "tests/work/tb_input.log": "794f5aa56afbf6762c06b746c0c7df246b03c8fe875d1221b2542a271bf1fc5e",
+    "tests/work/tb_game.log": "57083a2868f1dc5a8e1a21c0295e99692fb42043f3aead9fa4eab0234ee1cce5",
+    "tests/work/tb_physics.log": "2649c1c9d6828d9b78f069c35d50460a1a50455bcc01bf39be325ffda6b3b37e",
+    "tests/work/tb_multiball.log": "175b716dcd1c7c2c42e115e69ec08d9a2953da47d022ce4d725dba8fa9fe1869",
+    "tests/work/tb_two_ball_game.log": "b62ec1d3ad64be7f179f1d24b6898004947a211ac58ac19310a181b6114ee53b",
+    "tests/work/tb_collision.log": "8f1948f63078c32af6e782e92bab2bac2b99527d0cb418f7c0e5a1a466b86510",
+    "tests/work/tb_vga.log": "62638cd8c42590359987e4f4de74961923e6b1b90dd66f8662cdaeef9fbb4b7f",
+    "tests/work/tb_vga_clock.log": "b59a98df42de166cb3c5f5f75932e3df7b32274cc02c9508b5f36df846cbcf66",
+    "tests/work/tb_renderer.log": "dbd7711002e9ebedd9261917989126d50897b282765acb07465e6a6df2f77224",
+    "tests/work/tb_effects.log": "cd45008bf64d6b34b07259d5b430e9501a2a0dcddb88cfb2837fe6ad94d39aba",
+    "tests/work/tb_vga_renderer.log": "03c844d2ada3bd1339d2f790e048d0f6f9d00dc84e69acd1a2e5d8d81e0c68ec",
+    "tests/work/tb_top.log": "6a070efe2f5b8ee5c2c7c3859dffb06d47c3eaf3dc88b3913c1ffb1daa23a7f0"
+  }
+}

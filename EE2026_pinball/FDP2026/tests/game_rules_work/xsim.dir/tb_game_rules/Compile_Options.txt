@@ -1,0 +1,1 @@
+"tb_game" --timescale "1ns/1ps" -s "tb_game_rules" 

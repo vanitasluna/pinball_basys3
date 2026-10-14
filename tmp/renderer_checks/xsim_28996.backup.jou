@@ -1,0 +1,25 @@
+#-----------------------------------------------------------
+# xsim v2025.2 (64-bit)
+# SW Build 6299465 on Fri Nov 14 19:35:11 GMT 2025
+# IP Build 6300035 on Fri Nov 14 10:48:45 MST 2025
+# SharedData Build 6298862 on Thu Nov 13 04:50:51 MST 2025
+# Start of session at: Tue Oct 13 16:47:19 2026
+# Process ID         : 28996
+# Current directory  : D:/NUS_Y2_S1/EE2026_prep/tmp/renderer_checks
+# Command line       : xsim.exe -mode tcl -source {xsim.dir/renderer_snapshots/xsim_script.tcl}
+# Log file           : D:/NUS_Y2_S1/EE2026_prep/tmp/renderer_checks/xsim.log
+# Journal file       : D:/NUS_Y2_S1/EE2026_prep/tmp/renderer_checks\xsim.jou
+# Running On         : Pegasus
+# Platform           : Windows Server 2016 or Windows 10
+# Operating System   : 26300
+# Processor Detail   : Intel(R) Core(TM) i9-14900HX
+# CPU Frequency      : 2419 MHz
+# CPU Physical cores : 24
+# CPU Logical cores  : 32
+# Host memory        : 34070 MB
+# Swap memory        : 2147 MB
+# Total Virtual      : 36217 MB
+# Available Virtual  : 12680 MB
+#-----------------------------------------------------------
+source xsim.dir/renderer_snapshots/xsim_script.tcl
+run -all

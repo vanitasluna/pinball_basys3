@@ -1,0 +1,119 @@
+--- PAGE 1 ---
+I-FDP PROPOSAL DOCUMENT
+Group ID: S2_03 Description
+Our group proposes a pinball game implemented on the Basys3
+Group Theme:
+FPGA board, combining arcade gameplay with real-time physics
+FPGA Pinball Arcade
+simulation. Players will control flippers to keep a ball in play, hit targets,
+and achieve the highest possible score. The pinball table will appear on a
+larger screen through the board’s VGA output and a VGA-to-HDMI
+converter. Board buttons/mouse click will control the flippers and ball
+launcher.
+(Image for reference)
+
+--- PAGE 2 ---
+The game will incorporate gravity, acceleration, velocity, and energy
+loss to produce realistic ball movement. Collision detection will determine
+when the ball contacts walls, bumpers, targets, or moving flippers, while
+bouncing logic will update its direction and speed. Additional features will
+include randomized bonuses, animated effects, scoring, limited lives. We
+will use separate hardware modules for physics calculations, collision
+handling, game control, input processing, and graphics rendering. This
+project will demonstrate how concurrent FPGA logic can coordinate
+responsive controls, complex calculations, and interactive graphics.
+Motion and Physics Engine
+Group Member 1:
+Truong Phi Hung
+● Member responsibility: Develop the motion engine for the ball
+and flippers. Own the ball’s position and velocity calculations,
+gravity, movement timing, launch velocity, and flipper angles. Apply
+collision corrections supplied by Member 2.
+● Week 7: Participated in project planning and discussed the
+movement and physics features needed for the pinball game.
+● Week 8: Started structuring the motion modules and defining
+interfaces for ball position, velocity, launch commands, and flipper
+movement.
+● Week 9: Refined the module interfaces and planned fixed-point
+arithmetic, update timing, gravity calculations, and flipper
+movement limits.
+● Week 10: Will implement ball movement, gravity, launch velocity,
+and button-controlled flipper motion.
+
+--- PAGE 3 ---
+● Week 11: Will connect the motion engine to the collision and input
+modules, then tune movement speed, gravity strength, and flipper
+responsiveness.
+● Week 12: Will test numerical accuracy and movement stability on
+the board, resolve motion-related problems, and prepare the
+component’s documentation and demonstration.
+Collision Detection and Table Interactions
+Group Member 2:
+Suraj
+● Member responsibility: Develop the collision component for
+walls, bumpers, targets, and moving flippers. Calculate bouncing
+responses and provide corrected velocities to Member 1, while
+sending hit events to the scoring and graphics components.
+● Week 7: Helped plan the table’s interactive features and discussed
+suitable collision shapes and bouncing behaviour.
+● Week 8: Started structuring separate collision checks and defining
+interfaces for object positions, velocities, flipper angles, and hit
+events.
+● Week 9: Refined the collision-module structure and outlined
+detection methods, response calculations, and handling of
+simultaneous contacts.
+● Week 10: Will implement wall and bumper collisions, reflected
+velocity, and energy loss during bouncing.
+● Week 11: Will add moving-flipper and target interactions, connect
+collision responses to the motion engine, and send hit events to
+other modules.
+● Week 12: Will test corner collisions, repeated contacts, and
+high-speed impacts on the board, fix collision errors, and document
+
+--- PAGE 4 ---
+the component.
+Graphics and Display System
+Group Member 3:
+Duong Nghiep Hoang
+● Member responsibility: Develop the complete display component,
+including VGA timing, table graphics, moving objects, text, and
+visual effects. Display game information supplied by Member 4 on
+a larger screen through the VGA-to-HDMI converter.
+● Week 7: Helped plan the game’s visual presentation, screen
+layout, and display requirements.
+● Week 8: Started structuring the graphics system into display
+timing, table rendering, object drawing, and text modules.
+● Week 9: Refined display interfaces and planned how ball positions,
+flipper angles, collision events, scores, and lives would appear on
+screen.
+● Week 10: Will implement VGA output and draw the table,
+boundaries, bumpers, targets, ball, and flippers.
+● Week 11: Will connect live game data, add collision animations
+and the score display, and implement start and game-over screens.
+● Week 12: Will test display timing and converter compatibility,
+improve animation and text readability, and prepare the graphics
+documentation and demonstration.
+
+--- PAGE 5 ---
+Game Rules and Player Input
+Group Member 4:
+Nguyen Duc Khoa
+● Member responsibility: Develop the game-management
+component and process player inputs. Handle button debouncing,
+mouse menu controls, scoring, lives, randomized bonuses, and
+transitions between start, gameplay, pause, and game-over states.
+● Week 7: Helped plan the game rules, player controls, scoring
+opportunities, and bonus features.
+● Week 8: Started structuring the input-processing and game-state
+modules, defining control signals and shared game information.
+● Week 9: Refined the state-machine structure and outlined input
+handling, score updates, life loss, launch commands, and restart
+behaviour.
+● Week 10: Will implement input processing, game-state transitions,
+scoring, life tracking, and start/restart controls.
+● Week 11: Will add randomized bonuses and difficulty settings, then
+connect controls, collision events, and display information to the
+other components.
+● Week 12: Will test scoring accuracy, input reliability, and complete
+game sequences on the board, resolve game-management issues,
+and document the component.

@@ -1,0 +1,1 @@
+"tb_two_ball_game" --timescale "1ns/1ps" -s "tb_two_ball_game" 

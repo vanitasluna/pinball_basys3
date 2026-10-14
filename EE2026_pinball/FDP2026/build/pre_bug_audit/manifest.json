@@ -1,0 +1,201 @@
+{
+  "part": "xc7a35tcpg236-1",
+  "tool": "Vivado 2025.2",
+  "date": "2026-10-14",
+  "timezone": "Asia/Singapore",
+  "build_completed_local": "2026-10-14T14:56:45+08:00",
+  "build_log": "build/anime_fx_final.log",
+  "setup_slack_ns": 0.178,
+  "hold_slack_ns": 0.052,
+  "setup_failing_endpoints": 0,
+  "hold_failing_endpoints": 0,
+  "drc_errors": 0,
+  "drc_advisory_warnings": 187,
+  "unconstrained_internal_endpoints": 0,
+  "resources": {
+    "Slice LUTs": {
+      "used": 18327,
+      "available": 20800,
+      "percent": 88.11
+    },
+    "Slice Registers": {
+      "used": 3560,
+      "available": 41600,
+      "percent": 8.56
+    },
+    "DSPs": {
+      "used": 54,
+      "available": 90,
+      "percent": 60.0
+    },
+    "Block RAM Tile": {
+      "used": 0,
+      "available": 50,
+      "percent": 0.0
+    },
+    "Bonded IOB": {
+      "used": 60,
+      "available": 106,
+      "percent": 56.6
+    },
+    "BUFGCTRL": {
+      "used": 4,
+      "available": 32,
+      "percent": 12.5
+    }
+  },
+  "vga_resolution": [
+    800,
+    600
+  ],
+  "vga_pixel_clock_mhz": 40,
+  "oled_resolution": [
+    96,
+    64
+  ],
+  "oled_connector": "JC",
+  "score_unit_points": 0.5,
+  "physics_hz": 240,
+  "moving_bumper_speed_pixels_per_second": 3.75,
+  "play_modes": [
+    1,
+    2
+  ],
+  "mode_selector": "Menu U press or ball-mode-row mouse click; captured at game start",
+  "collision_instances": 1,
+  "bug_fixes": [
+    "swept target/sling corners",
+    "drain pause/resume race",
+    "complete mouse packets and bounded widgets",
+    "atomic survivor trail handoff",
+    "paused impact retention",
+    "cursor/ball priority and clipped/state-aware prompts"
+  ],
+  "protection_feedback": {
+    "ball_color": "bright blue",
+    "trail_color": "fading blue",
+    "applies_to": "both live balls and shared trail",
+    "signal": "frame-snapshotted save_timer != 0"
+  },
+  "visual_enhancements": [
+    "persistent score/lives HUD",
+    "save countdown and live-ball status",
+    "mouse-hover action buttons",
+    "neon panels and animated table accents",
+    "segmented charge meter",
+    "two retained impact bursts"
+  ],
+  "anime_reactions": {
+    "mascot": "original circuit cat",
+    "events": [
+      1,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "window": "feature_timer > 120 (first half-second)",
+    "states": "PLAY; READY only for saved event4",
+    "combo_event_excluded": true
+  },
+  "impact_bursts": {
+    "capacity": 2,
+    "sparks_per_burst": 4
+  },
+  "physics_commit_clocks": {
+    "one_ball": 16,
+    "two_balls": 33
+  },
+  "two_ball_hit_separation_clocks": 4,
+  "final_pair_drain_delay_clocks": 6,
+  "launch_power": {
+    "meter_min": 0,
+    "meter_max": 63,
+    "minimum_shot": 16,
+    "steps_per_second": 60,
+    "cycle_seconds": 2.1,
+    "mode": "continuous triangular sweep"
+  },
+  "moving_bumper_paths": {
+    "left": {
+      "x": 26,
+      "y_min": 22,
+      "y_max": 28
+    },
+    "right": {
+      "y": 22,
+      "x_min": 58,
+      "x_max": 66
+    }
+  },
+  "previous_lut_percent": 86.71,
+  "bitstream_bytes": 1539599,
+  "bitstream_sha256": "0a88fdc02f16faca426c239a6374e575553f3c00428e40217a9bff9995a32b14",
+  "source_sha256": {
+    "FDP2026.srcs/constrs_1/new/Basys3_Master.xdc": "8e3d7f49e45d5deff78c74729df9b13e7206012b2988ab9af7f196e0dfebbd07",
+    "FDP2026.srcs/constrs_1/new/Pinball_Physics_Timing.xdc": "0b53e2aebbbd7cea2857c9a530f15d663aefcc9304e574296662d1ecea092209",
+    "FDP2026.srcs/sources_1/new/Mouse_Control.vhd": "f57b58c4c35b21e569b0d279a2014c41f19a57bf10990338463e0480944d9ca7",
+    "FDP2026.srcs/sources_1/new/My_Top_Module.v": "c5c9c3f02f1c6d038b3d03c2f3463a31df6c0452b9f7dd2d0f8ba61cc245217b",
+    "FDP2026.srcs/sources_1/new/Oled_Display.v": "f0f7b4a7a5b65a40598ccbb8f985ac826e788ce381c613409e92cea52528ffe5",
+    "FDP2026.srcs/sources_1/new/pinball_collision.v": "4fa9eca1a17e66678079024344208164539c0e8fda9b37aa55afdbf0c663fbee",
+    "FDP2026.srcs/sources_1/new/pinball_effects.v": "77230233dd0e088598a8c4ac224aa962552420d1bb544053d1c9e4ec6adc14f2",
+    "FDP2026.srcs/sources_1/new/pinball_game.v": "a97e9b28e6a34bb35b2858ab9150816b8d33eebccd546248580ec8c0a8dac5d6",
+    "FDP2026.srcs/sources_1/new/pinball_input.v": "c63d291aedc1757b2114bde6e94fb9828649c6f64aebcb77a4fb8c8b1bd86873",
+    "FDP2026.srcs/sources_1/new/pinball_physics.v": "4c3d2103d723f65f6460341bcd322c191d1ac1712df95a08bb1eea14c269bd91",
+    "FDP2026.srcs/sources_1/new/pinball_renderer.v": "8e6dfee8e3264d6193d2d9feddcce29f528d8b65eda3ccf9e8033825324d951a",
+    "FDP2026.srcs/sources_1/new/pinball_sevenseg.v": "3726ca4214c41dfaa6f6c924aa6577d26bc5d83ccbfab669d875d99be96ea2aa",
+    "FDP2026.srcs/sources_1/new/pinball_vga.v": "17a90900ce71d162ab3de668194dec163582e433127610e7bf4c599e7f7322f2",
+    "FDP2026.srcs/sources_1/new/pinball_vga_clock.v": "8bfe59804098b59b9acd46e4705a4e53103c61072246347d95ae40aec9f6c798",
+    "FDP2026.srcs/sources_1/new/pinball_vga_renderer.v": "29042d2502696c591bf922a1d51ceaeaf669e6b773ade6265637a89e03d2d1e6",
+    "FDP2026.srcs/sources_1/new/Ps2Interface.vhd": "7c2af6f51bd408549435bbbbafcb9d33053a98a1a63bdc1046c9872f52c499eb",
+    "FDP2026.xpr": "f1006f7cc611b9f04e05aed06c2a44ca5da69dabdac8a67d8a76f5126059612b"
+  },
+  "simulations_passed": [
+    "tb_input",
+    "tb_game",
+    "tb_physics",
+    "tb_multiball",
+    "tb_two_ball_game",
+    "tb_collision",
+    "tb_vga",
+    "tb_vga_clock",
+    "tb_renderer",
+    "tb_effects",
+    "tb_vga_renderer",
+    "tb_top"
+  ],
+  "simulations_rerun_this_revision": [
+    "tb_renderer",
+    "tb_vga_renderer",
+    "tb_top"
+  ],
+  "testbench_sha256": {
+    "tests/tb_input.sv": "80c207e26afef076e33f36d9d1e657964dc94a1de7621c8b49060808b4be700f",
+    "tests/tb_game.sv": "0cdfd474d75cba7081a7c5da1e93a39ee474ec421d00b5daf687dc9d305caf92",
+    "tests/tb_physics.sv": "204592772c5f0ae9300d1a405ba15727851e96f6c3fe833810bbf935dcc6a16e",
+    "tests/tb_multiball.sv": "4a92a36a5a9509ec26dcc1a6e32212af7cf8d8e9993c637c8ce666b1d725aa89",
+    "tests/tb_two_ball_game.sv": "1330ad47e446bd769ddc83fba1022ab65877ec536011f9196de368e57ed94146",
+    "tests/tb_collision.sv": "f38608886c89bc8d64ee48f0ed1461268856312886ff66f9f151ca41161b1998",
+    "tests/tb_vga.sv": "c735560a5c59e8f8c0cc5a1efa62d4190843f6d45f444427b9d91797c9eee14e",
+    "tests/tb_vga_clock.sv": "0501d21dff8e23fe1dc8e0338f6eb63c4f9482d2f665beaa46423f38658076de",
+    "tests/tb_renderer.sv": "b5f5f0d683547b720d328a230daa7a8535f6f780af06df80ebea83c7abc59813",
+    "tests/tb_effects.sv": "02c91197a7d12e47f721cb7da9e86dcb068e54cba749087bb9747c42bb2ee778",
+    "tests/tb_vga_renderer.sv": "e3034d707449e80752db93f36e7b9ce4fdcd401669bccf91a154f5e3196fb951",
+    "tests/tb_top.sv": "2c610d7277967c1191622ff9b6db13c522137fcbcc5a5e32019f0b5cc33560c6"
+  },
+  "simulation_log_sha256": {
+    "tests/work/tb_input.log": "6f5b95ac6178ba683d4e7e35c8d3d5229667003f51a209a047847688c3acc311",
+    "tests/work/tb_game.log": "29355827037ecb2dd37aa64eca59071a12c62c7410da01e21ac7260fa0c2faaa",
+    "tests/work/tb_physics.log": "fb4c406c1c24d6bd463b93607747c19a636cd94edc7afe01b265ba213613c6fa",
+    "tests/work/tb_multiball.log": "d68c1daf2da1d64193a3363a699ca32b30c68733a8aa5856fe8007b8f10587b9",
+    "tests/work/tb_two_ball_game.log": "854511eb0f0c93ea7b0b11199a8eef174aa25c4e801f5d52099dedc51e3f0f26",
+    "tests/work/tb_collision.log": "b84de094faeb3c7078b1b93d26e21a1e02e1cacce355e54f0f1f7a5be42a801d",
+    "tests/work/tb_vga.log": "6d701fccf231d35bd033f67ddb846629013f3baadb0cfc0e4433b858069a6d6a",
+    "tests/work/tb_vga_clock.log": "833df02431fb20478ac341bab158b022d1bb866b48144d62744dd98b6b64019b",
+    "tests/work/tb_renderer.log": "7e440579bd226db8c6bdfb8456f6471f4c8312a691ec8f7f9ead6a9e45760534",
+    "tests/work/tb_effects.log": "5e0a8d572f81d2aba78c7ecb3ec2131d4f06722dce30ed3f93cf2722fa301c1e",
+    "tests/work/tb_vga_renderer.log": "6bbe30216c38e49f5018f74cd59d963fcc03d54b2860e4c5ee5f0e1cdddb61cd",
+    "tests/work/tb_top.log": "a99fb248e51c3a5df1cefd07069d5589c028e3ae1492168074496d7c77176528"
+  }
+}

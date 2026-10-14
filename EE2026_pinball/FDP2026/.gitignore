@@ -1,0 +1,13 @@
+*.jou
+*.log
+.Xil/
+FDP2026.cache/
+FDP2026.runs/
+FDP2026.gen/
+FDP2026.sim/
+tests/work*/
+tests/render_*.hex
+tests/xvlog.pb
+tests/xsim.dir/
+build/*.dcp
+build/*.rpx

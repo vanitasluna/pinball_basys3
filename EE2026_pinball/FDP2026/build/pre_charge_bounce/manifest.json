@@ -1,0 +1,130 @@
+{
+  "part": "xc7a35tcpg236-1",
+  "tool": "Vivado 2025.2",
+  "date": "2026-10-14",
+  "timezone": "Asia/Singapore",
+  "build_completed_local": "2026-10-14T00:17:11",
+  "build_log": "build/moving_final.log",
+  "setup_slack_ns": 0.532,
+  "hold_slack_ns": 0.058,
+  "setup_failing_endpoints": 0,
+  "hold_failing_endpoints": 0,
+  "drc_errors": 0,
+  "drc_advisory_warnings": 157,
+  "unconstrained_internal_endpoints": 0,
+  "resources": {
+    "Slice LUTs": {
+      "used": 15830,
+      "available": 20800,
+      "percent": 76.11
+    },
+    "Slice Registers": {
+      "used": 3216,
+      "available": 41600,
+      "percent": 7.73
+    },
+    "DSPs": {
+      "used": 44,
+      "available": 90,
+      "percent": 48.89
+    },
+    "Block RAM Tile": {
+      "used": 0,
+      "available": 50,
+      "percent": 0.0
+    },
+    "Bonded IOB": {
+      "used": 60,
+      "available": 106,
+      "percent": 56.6
+    },
+    "BUFGCTRL": {
+      "used": 4,
+      "available": 32,
+      "percent": 12.5
+    }
+  },
+  "vga_resolution": [
+    800,
+    600
+  ],
+  "vga_pixel_clock_mhz": 40,
+  "oled_resolution": [
+    96,
+    64
+  ],
+  "oled_connector": "JC",
+  "score_unit_points": 5,
+  "physics_hz": 240,
+  "moving_bumper_speed_pixels_per_second": 3.75,
+  "moving_bumper_paths": {
+    "left": {
+      "x": 26,
+      "y_min": 22,
+      "y_max": 28
+    },
+    "right": {
+      "y": 22,
+      "x_min": 58,
+      "x_max": 66
+    }
+  },
+  "previous_lut_percent": 62.52,
+  "bitstream_bytes": 1527851,
+  "bitstream_sha256": "8f55308659d923308f48c6168c713c5d5cdf4beefb6693946ed2955c9b881d72",
+  "source_sha256": {
+    "FDP2026.srcs/constrs_1/new/Basys3_Master.xdc": "8e3d7f49e45d5deff78c74729df9b13e7206012b2988ab9af7f196e0dfebbd07",
+    "FDP2026.srcs/constrs_1/new/Pinball_Physics_Timing.xdc": "fa26fdb4dfb6003810148ec689139a137d3a88bafea3d410dd64626fa4a9281d",
+    "FDP2026.srcs/sources_1/new/Mouse_Control.vhd": "f57b58c4c35b21e569b0d279a2014c41f19a57bf10990338463e0480944d9ca7",
+    "FDP2026.srcs/sources_1/new/My_Top_Module.v": "0cc78d1eaceb4bcf3d672099deb9ed6028a263ba77ebf60783a87a0e574ebe60",
+    "FDP2026.srcs/sources_1/new/Oled_Display.v": "f0f7b4a7a5b65a40598ccbb8f985ac826e788ce381c613409e92cea52528ffe5",
+    "FDP2026.srcs/sources_1/new/pinball_collision.v": "46cc3430e804b47412f512884ef2753a4d51fa1c6df1f4a3fde835d6a3c1c768",
+    "FDP2026.srcs/sources_1/new/pinball_effects.v": "4299e6fa085b030fd6bebbae321fba48ba788570057d18d00fcd10a0dee7611e",
+    "FDP2026.srcs/sources_1/new/pinball_game.v": "bb89aefa80eca17548fc39e8e368f3e5d989665718d9072f3afd3c0729efc7f4",
+    "FDP2026.srcs/sources_1/new/pinball_input.v": "c63d291aedc1757b2114bde6e94fb9828649c6f64aebcb77a4fb8c8b1bd86873",
+    "FDP2026.srcs/sources_1/new/pinball_physics.v": "e38e718961e6b30553e0b20050c201666b0b7f58aa85ce7b432bfb5aa2842567",
+    "FDP2026.srcs/sources_1/new/pinball_renderer.v": "38cf62e48ffcdf9e91e77514be45b06a3a24771f24e2f4a8fe8a54332c2f9676",
+    "FDP2026.srcs/sources_1/new/pinball_sevenseg.v": "3726ca4214c41dfaa6f6c924aa6577d26bc5d83ccbfab669d875d99be96ea2aa",
+    "FDP2026.srcs/sources_1/new/pinball_vga.v": "17a90900ce71d162ab3de668194dec163582e433127610e7bf4c599e7f7322f2",
+    "FDP2026.srcs/sources_1/new/pinball_vga_clock.v": "8bfe59804098b59b9acd46e4705a4e53103c61072246347d95ae40aec9f6c798",
+    "FDP2026.srcs/sources_1/new/pinball_vga_renderer.v": "ae802b9a601690e6b6fc4fb378aa171a50c580c7315f7fc39da83a120143f188",
+    "FDP2026.srcs/sources_1/new/Ps2Interface.vhd": "7c2af6f51bd408549435bbbbafcb9d33053a98a1a63bdc1046c9872f52c499eb",
+    "FDP2026.xpr": "37e3cd60034cedfbc8eca506e6ddfdbd8149fbb882fcc2059d0471bd04e1a327"
+  },
+  "simulations_passed": [
+    "tb_input",
+    "tb_game",
+    "tb_physics",
+    "tb_collision",
+    "tb_vga",
+    "tb_vga_clock",
+    "tb_renderer",
+    "tb_effects",
+    "tb_vga_renderer",
+    "tb_top"
+  ],
+  "testbench_sha256": {
+    "tests/tb_input.sv": "80c207e26afef076e33f36d9d1e657964dc94a1de7621c8b49060808b4be700f",
+    "tests/tb_game.sv": "a32db415c2ce789a719b3510307c96b69c379dcb3b29a59ebdfd9043a99401f5",
+    "tests/tb_physics.sv": "7138a2472a668d789d56c8f6d5ce32d6d5d62a77dd301ba641543d5739a6810e",
+    "tests/tb_collision.sv": "3fbbb36c6c858d5d1e5bdc74c2675155b1fb9616fcd59dd7bfe9c4db444ab62e",
+    "tests/tb_vga.sv": "c735560a5c59e8f8c0cc5a1efa62d4190843f6d45f444427b9d91797c9eee14e",
+    "tests/tb_vga_clock.sv": "0501d21dff8e23fe1dc8e0338f6eb63c4f9482d2f665beaa46423f38658076de",
+    "tests/tb_renderer.sv": "a3d3062bf3e35773ff2e17cffc71d91e4c47636a5bae3000c1c98a16c634dd79",
+    "tests/tb_effects.sv": "b5911300d0079f576d614bd58b15a2a863cf1374198a45aa268ee138154a1fcb",
+    "tests/tb_vga_renderer.sv": "322813b129c8eb201bf93c06a1582065d5236f37a156794a4b4a6f28428622ff",
+    "tests/tb_top.sv": "55a2e0ced7a71b1539d6a301c5ed1016a1c17bff72198ee7e79df06ad7662c67"
+  },
+  "simulation_log_sha256": {
+    "tests/work/tb_input.log": "6e3ff4111b9c45bd3d972fac2faaa9439956534c1c6641df23eacc98552a1eef",
+    "tests/work/tb_game.log": "d3fe5f8f05614994cde4d5112300a7640f5628f1e1a55bfa51eef5efcaaedcec",
+    "tests/work/tb_physics.log": "386c9253f137e99e5b07ecb7062d495b779b1efcb503708dbf21854af6dd0fc3",
+    "tests/work/tb_collision.log": "9bfb0bf24c966e6610c6ade1a7d0d6f43b9aa02cc9e32acfa1b7a24c958f102c",
+    "tests/work/tb_vga.log": "4e76c902c35327f72a0b6c0a7e604f80486628ca56d6acae94f9da5280103b11",
+    "tests/work/tb_vga_clock.log": "1a5a91552237331feafe3b125e7ecfb6c9a6657b4a122fc37adfdb8f8fa7ed7e",
+    "tests/work/tb_renderer.log": "f00d4fa9a8171ce29d97691eef2a04b912f303fc65cc0619a14a6f5a75f10635",
+    "tests/work/tb_effects.log": "33dab0ea27da5b9d55b22db7a082e3bfe58942533af89fa32bfe6c82be33d90e",
+    "tests/work/tb_vga_renderer.log": "43539f363beec1586c4882148bba201189d0cf36293586cadf6ff8f56b355598",
+    "tests/work/tb_top.log": "fc94ca4ed9beb5bddfdcaf193c23ca7b8890140fc73f63b5ac72eaaa9869694c"
+  }
+}

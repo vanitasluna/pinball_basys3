@@ -1,0 +1,43 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version : Vivado v.2025.2 (win64) Build 6299465 Fri Nov 14 19:35:11 GMT 2025
+| Date         : Wed Oct 14 15:26:38 2026
+| Host         : Pegasus running 64-bit major release  (build 9200)
+| Command      : report_utilization -hierarchical -hierarchical_depth 4 -file D:/NUS_Y2_S1/EE2026_prep/EE2026_pinball/FDP2026/build/utilization_hierarchical.rpt
+| Design       : My_Top_Module
+| Device       : xc7a35tcpg236-1
+| Speed File   : -1
+| Design State : Routed
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Utilization Design Information
+
+Table of Contents
+-----------------
+1. Utilization by Hierarchy
+
+1. Utilization by Hierarchy
+---------------------------
+
++-----------------------+----------------------+------------+------------+---------+------+------+--------+--------+------------+
+|        Instance       |        Module        | Total LUTs | Logic LUTs | LUTRAMs | SRLs |  FFs | RAMB36 | RAMB18 | DSP Blocks |
++-----------------------+----------------------+------------+------------+---------+------+------+--------+--------+------------+
+| My_Top_Module         |                (top) |      18380 |      18380 |       0 |    0 | 3563 |      0 |      0 |         54 |
+|   (My_Top_Module)     |                (top) |         17 |         17 |       0 |    0 | 1577 |      0 |      0 |          0 |
+|   effects             |      pinball_effects |        822 |        822 |       0 |    0 |  492 |      0 |      0 |          0 |
+|   game                |         pinball_game |        315 |        315 |       0 |    0 |  245 |      0 |      0 |          0 |
+|   inputs              |        pinball_input |         52 |         52 |       0 |    0 |  115 |      0 |      0 |          0 |
+|   mouse               |             MouseCtl |        289 |        289 |       0 |    0 |  283 |      0 |      0 |          0 |
+|     (mouse)           |             MouseCtl |        164 |        164 |       0 |    0 |  186 |      0 |      0 |          0 |
+|     Inst_Ps2Interface |         Ps2Interface |        125 |        125 |       0 |    0 |   97 |      0 |      0 |          0 |
+|   oled                |         Oled_Display |       1923 |       1923 |       0 |    0 |  115 |      0 |      0 |          0 |
+|   physics             |      pinball_physics |      11408 |      11408 |       0 |    0 |  684 |      0 |      0 |         52 |
+|     (physics)         |      pinball_physics |       6456 |       6456 |       0 |    0 |  684 |      0 |      0 |          0 |
+|     collisions        |    pinball_collision |       4982 |       4982 |       0 |    0 |    0 |      0 |      0 |         52 |
+|   vga_graphics        |    pinball_vga_scene |        168 |        168 |       0 |    0 |    0 |      0 |      0 |          2 |
+|     graphics          | pinball_vga_renderer |        168 |        168 |       0 |    0 |    0 |      0 |      0 |          2 |
+|   video               |          pinball_vga |       3382 |       3382 |       0 |    0 |   35 |      0 |      0 |          0 |
++-----------------------+----------------------+------------+------------+---------+------+------+--------+--------+------------+
+* Note: The sum of lower-level cells may be larger than their parent cells total, due to cross-hierarchy LUT combining
+
+
