@@ -6,6 +6,8 @@ module tb_collision;
     reg [2:0] left_angle, right_angle;
     reg signed [15:0] moving_bumper_previous_y, moving_bumper_next_y, moving_bumper_velocity_y;
     reg signed [15:0] moving_bumper_previous_x, moving_bumper_next_x, moving_bumper_velocity_x;
+    reg signed [15:0] side_left_previous_y, side_left_next_y, side_left_velocity_y;
+    reg signed [15:0] side_right_previous_y, side_right_next_y, side_right_velocity_y;
     wire signed [15:0] corrected_x, corrected_y, corrected_vx, corrected_vy;
     wire [13:0] hit_events;
     integer checks = 0, extreme, direction, target, mirror, sling;
@@ -25,6 +27,8 @@ module tb_collision;
             moving_bumper_velocity_y=0;
             moving_bumper_previous_x=58*256; moving_bumper_next_x=58*256;
             moving_bumper_velocity_x=0;
+            side_left_previous_y=33*256; side_left_next_y=33*256; side_left_velocity_y=0;
+            side_right_previous_y=33*256; side_right_next_y=33*256; side_right_velocity_y=0;
         end
     endtask
 
@@ -80,8 +84,8 @@ module tb_collision;
         setup(29*256, 24*256, -160, -160); #1;
         check(hit_events == 5'b00001 && corrected_vx > 0 && corrected_vy > 0,
             "diagonal bumper reflection");
-        setup(9*256, 33*256, -200, 0); #1;
-        check(hit_events == 5'b01000 && corrected_vx > 0 && corrected_x > 9*256,
+        setup(8*256, 33*256, -200, 0); #1;
+        check(hit_events == 5'b01000 && corrected_vx > 0 && corrected_x > 8*256,
             "left target bit");
         setup(76*256, 33*256, 200, 0); #1;
         check(hit_events == 5'b10000 && corrected_vx < 0 && corrected_x < 76*256,
@@ -245,6 +249,59 @@ module tb_collision;
                 mirror ? -256 : 256,0); #1;
             check(hit_events==0 && corrected_x==proposed_x && corrected_y==proposed_y,
                 "diamond sling sweep rejects a path above its finite top tip");
+        end
+        // Moving rectangles collide with every real face, not their old
+        // fixed y band. Reflection uses surface-relative vertical velocity.
+        for (target=0;target<2;target=target+1) begin
+            setup((target ? 78 : 6)*256,37*256+2,0,0);
+            if (target) begin side_right_next_y=33*256+4;side_right_velocity_y=4;end
+            else begin side_left_next_y=33*256+4;side_left_velocity_y=4;end
+            #1;
+            check(hit_events==(14'h0008<<target) && corrected_vy==39 &&
+                corrected_y==33*256+4+1152,
+                "moving rectangle bottom sweeps a stationary ball in its velocity frame");
+            setup((target ? 78 : 6)*256,29*256-2,0,0);
+            if (target) begin side_right_next_y=33*256-4;side_right_velocity_y=-4;end
+            else begin side_left_next_y=33*256-4;side_left_velocity_y=-4;end
+            #1;
+            check(hit_events==(14'h0008<<target) && corrected_vy==-39 &&
+                corrected_y==33*256-4-1152,
+                "moving rectangle top sweeps a stationary ball upward");
+            setup((target ? 78 : 6)*256,37*256,0,20);
+            if (target) begin side_right_next_y=33*256+4;side_right_velocity_y=4;end
+            else begin side_left_next_y=33*256+4;side_left_velocity_y=4;end
+            #1;
+            check(hit_events==0 && corrected_vy==20,
+                "a departing ball faster than the target does not rescore");
+            setup((target ? 78 : 6)*256,29*256,0,112);
+            if (target) begin side_right_previous_y=37*256;side_right_next_y=37*256;end
+            else begin side_left_previous_y=37*256;side_left_next_y=37*256;end
+            #1;
+            check(hit_events==0 && corrected_y==proposed_y,
+                "old side-target anchor is empty when the rectangle has moved");
+            for (mirror=0;mirror<2;mirror=mirror+1) begin
+                setup((target ? 78 : 6)*256+(mirror ? 344 : -344),33*256-1182,
+                    mirror ? -256 : 256,-320);#1;
+                check(hit_events==(14'h0008<<target) &&
+                    corrected_x==(target ? 78 : 6)*256+(mirror ? 640 : -640) &&
+                    (mirror ? corrected_vx>0 : corrected_vx<0),
+                    "tall moving-target sweep catches adjacent-face corner transit");
+                setup((target ? 78 : 6)*256+(mirror ? 344 : -344),33*256-1250,
+                    mirror ? -256 : 256,-320);#1;
+                check(hit_events==0 && corrected_x==proposed_x && corrected_y==proposed_y,
+                    "tall moving-target finite sweep rejects a real corner near miss");
+            end
+            for (extreme=0;extreme<2;extreme=extreme+1) begin
+                setup((target ? 76 : 8)*256,(extreme ? 37 : 29)*256,target ? 200 : -200,0);
+                if (target) begin side_right_previous_y=(extreme ? 37 : 29)*256;
+                    side_right_next_y=side_right_previous_y;end
+                else begin side_left_previous_y=(extreme ? 37 : 29)*256;
+                    side_left_next_y=side_left_previous_y;end
+                #1;
+                check(hit_events==(14'h0008<<target) &&
+                    (target ? corrected_vx<0 : corrected_vx>0),
+                    "side faces follow both moving track extrema");
+            end
         end
         $display("PASS tb_collision (%0d checks)", checks);
         $finish;

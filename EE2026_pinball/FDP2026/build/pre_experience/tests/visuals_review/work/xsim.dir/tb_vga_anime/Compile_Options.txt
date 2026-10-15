@@ -1,0 +1,1 @@
+"tb_vga_renderer" -s "tb_vga_anime" --timescale "1ns/1ps" -mt "off" 

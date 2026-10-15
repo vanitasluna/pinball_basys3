@@ -1,0 +1,1 @@
+"tb_vga_renderer" -s "tb_vga_neon_gui" --timescale "1ns/1ps" -mt "off" 

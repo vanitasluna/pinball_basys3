@@ -24,6 +24,12 @@ module pinball_collision (
     input wire signed [15:0] moving_bumper_previous_x,
     input wire signed [15:0] moving_bumper_next_x,
     input wire signed [15:0] moving_bumper_velocity_x,
+    input wire signed [15:0] side_left_previous_y,
+    input wire signed [15:0] side_left_next_y,
+    input wire signed [15:0] side_left_velocity_y,
+    input wire signed [15:0] side_right_previous_y,
+    input wire signed [15:0] side_right_next_y,
+    input wire signed [15:0] side_right_velocity_y,
     output reg signed [15:0] corrected_x,
     output reg signed [15:0] corrected_y,
     output reg signed [15:0] corrected_vx,
@@ -49,6 +55,10 @@ module pinball_collision (
     reg [4:0] sweep;
     reg [2:0] target_sweep;
     reg [1:0] normal_axis;
+    reg rectangle_found;
+    reg [2:0] rectangle_index;
+    reg signed [15:0] rectangle_half_y, rectangle_impulse;
+    reg signed [16:0] rectangle_old_x, rectangle_new_x;
     integer i;
 
     function [15:0] magnitude;
@@ -201,6 +211,9 @@ module pinball_collision (
         sx = 1'b0;
         sy = 1'b0;
         sweep=0; target_sweep=0; normal_axis=0;
+        rectangle_found=0; rectangle_index=0;
+        rectangle_half_y=16'sd512; rectangle_impulse=16'sd16;
+        rectangle_old_x=0; rectangle_new_x=0;
 
         if (!in_lane) begin
             // Rollovers and spinner are sensors: the ball passes through.
@@ -299,47 +312,95 @@ module pinball_collision (
                 end
             end
 
-            // Three permanent stand-up targets: drawn +/-1 around (34/42/50,20),
-            // expanded by the ball radius. Contact is reflected on the nearest
-            // face and cannot teleport a departing ball back into the target.
-            for (i = 0; i < 3; i = i + 1) begin
+            // The three stand-up rectangles and two moving side rectangles
+            // are far enough apart that one bounded tick cannot reach two.
+            // A cheap segment bounding box chooses one candidate before a
+            // SHARED finite-face sweep. This avoids five multiplier-heavy
+            // sweeps and preserves the bank's original contact priority.
+            for (i = 0; i < 5; i = i + 1) begin
                 case (i)
-                    0: centre_x = 16'sd8704;
-                    1: centre_x = 16'sd10752;
-                    default: centre_x = 16'sd12800;
+                    0: begin centre_x=16'sd8704; centre_y=16'sd5120;
+                        previous_centre_y=16'sd5120; rectangle_half_y=16'sd512; end
+                    1: begin centre_x=16'sd10752; centre_y=16'sd5120;
+                        previous_centre_y=16'sd5120; rectangle_half_y=16'sd512; end
+                    2: begin centre_x=16'sd12800; centre_y=16'sd5120;
+                        previous_centre_y=16'sd5120; rectangle_half_y=16'sd512; end
+                    3: begin centre_x=16'sd1536; centre_y=side_left_next_y;
+                        previous_centre_y=side_left_previous_y; rectangle_half_y=16'sd1024; end
+                    default: begin centre_x=16'sd19968; centre_y=side_right_next_y;
+                        previous_centre_y=side_right_previous_y; rectangle_half_y=16'sd1024; end
                 endcase
-                centre_y = 16'sd5120;
-                dx = proposed_x-centre_x; dy = proposed_y-centre_y;
-                ax = magnitude(dx); ay = magnitude(dy);
-                previous_dx=previous_x-centre_x;previous_dy=previous_y-centre_y;
-                target_sweep=(ax<=16'd512 && ay<=16'd512) ? 3'b0 :
-                    swept_clearance(previous_dx,previous_dy,dx,dy,17'sd512);
-                if (!solid_contact && ((ax <= 16'd512 && ay <= 16'd512) || target_sweep[2])) begin
-                    solid_contact = 1'b1;
-                    sx = (dx >= 0); sy = (dy >= 0);
-                    normal_axis=(ax>ay) ? 0 : 1;
-                    if(target_sweep[2]) begin
-                        normal_axis=target_sweep[0] ? 1 : 0;
-                        if(target_sweep[0]) sy=target_sweep[1];else sx=target_sweep[1];
+                dx=proposed_x-centre_x; dy=proposed_y-centre_y;
+                previous_dx=previous_x-centre_x; previous_dy=previous_y-previous_centre_y;
+                if (!rectangle_found &&
+                    (previous_dx<=16'sd512 || dx<=16'sd512) &&
+                    (previous_dx>=-16'sd512 || dx>=-16'sd512) &&
+                    (previous_dy<=rectangle_half_y || dy<=rectangle_half_y) &&
+                    (previous_dy>=-rectangle_half_y || dy>=-rectangle_half_y)) begin
+                    rectangle_found=1;
+                    rectangle_index=i[2:0];
+                end
+            end
+            case (rectangle_index)
+                0: begin centre_x=16'sd8704; centre_y=16'sd5120;
+                    previous_centre_y=16'sd5120; centre_vy=0; end
+                1: begin centre_x=16'sd10752; centre_y=16'sd5120;
+                    previous_centre_y=16'sd5120; centre_vy=0; end
+                2: begin centre_x=16'sd12800; centre_y=16'sd5120;
+                    previous_centre_y=16'sd5120; centre_vy=0; end
+                3: begin centre_x=16'sd1536; centre_y=side_left_next_y;
+                    previous_centre_y=side_left_previous_y; centre_vy=side_left_velocity_y; end
+                default: begin centre_x=16'sd19968; centre_y=side_right_next_y;
+                    previous_centre_y=side_right_previous_y; centre_vy=side_right_velocity_y; end
+            endcase
+            rectangle_half_y=(rectangle_index>=3) ? 16'sd1024 : 16'sd512;
+            rectangle_impulse=(rectangle_index>=3) ? 16'sd32 : 16'sd16;
+            dx=proposed_x-centre_x; dy=proposed_y-centre_y;
+            previous_dx=previous_x-centre_x; previous_dy=previous_y-previous_centre_y;
+            ax=magnitude(dx); ay=magnitude(dy);
+            // Stretch a tall side rectangle horizontally by two so the
+            // existing square sweep applies exactly, with no new multiplier.
+            rectangle_old_x=$signed({previous_dx[15],previous_dx});
+            rectangle_new_x=$signed({dx[15],dx});
+            if (rectangle_index>=3) begin
+                rectangle_old_x=rectangle_old_x<<<1;
+                rectangle_new_x=rectangle_new_x<<<1;
+            end
+            target_sweep=(ax<=16'd512 && ay<=rectangle_half_y) ? 3'b0 :
+                swept_clearance(rectangle_old_x,previous_dy,rectangle_new_x,dy,
+                    $signed({rectangle_half_y[15],rectangle_half_y}));
+            if (!solid_contact && rectangle_found &&
+                ((ax<=16'd512 && ay<=rectangle_half_y) || target_sweep[2])) begin
+                solid_contact=1;
+                sx=(dx>=0); sy=(dy>=0);
+                // Pick the nearest expanded face using penetration depths.
+                normal_axis=({1'b0,ax}+{1'b0,rectangle_half_y}>
+                    {1'b0,ay}+17'd512) ? 0 : 1;
+                if (target_sweep[2]) begin
+                    normal_axis=target_sweep[0] ? 1 : 0;
+                    if (target_sweep[0]) sy=target_sweep[1]; else sx=target_sweep[1];
+                end
+                if (normal_axis==0) begin
+                    corrected_x=centre_x+(sx ? 16'sd640 : -16'sd640);
+                    approach=sx ? velocity_x : -velocity_x;
+                    if (approach<0) begin
+                        corrected_vx=sx ?
+                            $signed((magnitude(velocity_x)*7)>>3)+rectangle_impulse :
+                            -$signed((magnitude(velocity_x)*7)>>3)-rectangle_impulse;
+                        if (rectangle_index<3) hit_events[11+rectangle_index]=1;
+                        else hit_events[rectangle_index]=1;
                     end
-                    if (normal_axis==0) begin
-                        corrected_x = centre_x+(sx ? 16'sd640 : -16'sd640);
-                        approach = sx ? velocity_x : -velocity_x;
-                        if (approach < 0) begin
-                            corrected_vx = sx ?
-                                $signed((magnitude(velocity_x)*7)>>3)+16'sd16 :
-                                -$signed((magnitude(velocity_x)*7)>>3)-16'sd16;
-                            hit_events[11+i] = 1'b1;
-                        end
-                    end else begin
-                        corrected_y = centre_y+(sy ? 16'sd640 : -16'sd640);
-                        approach = sy ? velocity_y : -velocity_y;
-                        if (approach < 0) begin
-                            corrected_vy = sy ?
-                                $signed((magnitude(velocity_y)*7)>>3)+16'sd16 :
-                                -$signed((magnitude(velocity_y)*7)>>3)-16'sd16;
-                            hit_events[11+i] = 1'b1;
-                        end
+                end else begin
+                    corrected_y=centre_y+(sy ? (rectangle_half_y+16'sd128) :
+                        -(rectangle_half_y+16'sd128));
+                    old_vy=velocity_y-centre_vy;
+                    approach=sy ? old_vy : -old_vy;
+                    if (approach<0) begin
+                        corrected_vy=(sy ?
+                            $signed((magnitude(old_vy)*7)>>3)+rectangle_impulse :
+                            -$signed((magnitude(old_vy)*7)>>3)-rectangle_impulse)+centre_vy;
+                        if (rectangle_index<3) hit_events[11+rectangle_index]=1;
+                        else hit_events[rectangle_index]=1;
                     end
                 end
             end
@@ -395,25 +456,6 @@ module pinball_collision (
                             hit_events[9+i] = 1'b1;
                         end
                     end
-                end
-            end
-
-            // Side target clearance matches the radius-one ball.
-            if (!solid_contact && proposed_y >= 16'sd7424 && proposed_y <= 16'sd9472) begin
-                if (proposed_x <= 16'sd2304) begin
-                    corrected_x = 16'sd2432;
-                    if (velocity_x < 0) begin
-                        corrected_vx = $signed((magnitude(velocity_x) * 7) >> 3) + 16'sd32;
-                        hit_events[3] = 1'b1;
-                    end
-                    solid_contact = 1'b1;
-                end else if (proposed_x >= 16'sd19456) begin
-                    corrected_x = 16'sd19328;
-                    if (velocity_x > 0) begin
-                        corrected_vx = -$signed((magnitude(velocity_x) * 7) >> 3) - 16'sd32;
-                        hit_events[4] = 1'b1;
-                    end
-                    solid_contact = 1'b1;
                 end
             end
 

@@ -1,0 +1,1 @@
+"tb_collision" -s "tb_collision" --timescale "1ns/1ps" 

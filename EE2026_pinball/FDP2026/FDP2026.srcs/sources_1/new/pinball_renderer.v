@@ -16,6 +16,8 @@ module pinball_renderer (
     input wire [1:0] balls_visible,
     input wire [13:0] moving_bumper_y_fp,
     input wire [14:0] moving_bumper_x_fp,
+    input wire [13:0] side_left_y_fp,
+    input wire [13:0] side_right_y_fp,
     input wire [2:0] left_angle,
     input wire [2:0] right_angle,
     input wire [15:0] score_bcd,
@@ -518,21 +520,76 @@ module pinball_renderer (
                             save_timer<=11'd960 ? 3'd4 :
                             save_timer<=11'd1200 ? 3'd5 : 3'd6;
 
-    // Brief reactions stay inside an unused table gap, behind every physical
-    // object, trail and ball. A saved READY reaction moves below the charge bar.
-    wire cat_relief=feature_event==3'd4;
-    wire cat_panic=feature_event==3'd6;
-    wire cat_reward=feature_event==3'd1 || feature_event==3'd3 ||
-                    feature_event==3'd5 || feature_event==3'd7;
-    wire cat_visible=feature_timer>10'd120 &&
-        ((state==PLAY && (cat_reward || cat_panic || cat_relief)) ||
-         (state==READY && cat_relief));
-    wire [3:0] cat_x=x-7'd5;
-    wire [3:0] cat_y=y-(state==READY ? 6'd20 : 6'd12);
-    wire cat_box=x>=7'd5 && x<=7'd18 &&
-        (state==READY ? (y>=6'd20 && y<=6'd28) : (y>=6'd12 && y<=6'd20));
+    // Persistent mascot stays in empty margins. Fresh events briefly override
+    // idle expressions; a retained event code never pins its expression.
+    localparam [2:0] CAT_IDLE=3'd0, CAT_HAPPY=3'd1, CAT_WINK=3'd2,
+                     CAT_PANIC=3'd3, CAT_SAD=3'd4, CAT_SLEEPY=3'd5;
+    wire cat_fresh=feature_timer>10'd120;
+    wire cat_relief=cat_fresh && feature_event==3'd4 && (state==PLAY || state==READY);
+    wire cat_panic=cat_fresh && feature_event==3'd6 && state==PLAY;
+    wire cat_reward=cat_fresh && state==PLAY &&
+        (feature_event==3'd1 || feature_event==3'd3 || feature_event==3'd5 || feature_event==3'd7);
+    wire [2:0] cat_mood=state==OVER ? CAT_SAD : state==PAUSE ? CAT_SLEEPY :
+        cat_panic ? CAT_PANIC : cat_relief ? CAT_WINK : cat_reward ? CAT_HAPPY :
+        anim[7:5]==3'd3 ? CAT_WINK : anim[7:5]==3'd5 ? CAT_HAPPY : CAT_IDLE;
+    wire cat_blink=anim[6:2]==5'd0;
+    wire cat_visible=state<=OVER;
+    wire [6:0] cat_left=(state==READY || state==PAUSE || state==OVER) ? 7'd10 : 7'd5;
+    wire [5:0] cat_top=(state==READY ? 6'd20 : state==MENU ? 6'd23 :
+                         state==PAUSE ? 6'd21 : state==OVER ? 6'd34 : 6'd12)+{5'd0,anim[5]};
+    wire [3:0] cat_x=x-cat_left;
+    wire [3:0] cat_y=y-cat_top;
+    wire cat_box=x>=cat_left && x<cat_left+7'd14 && y>=cat_top && y<cat_top+6'd9;
     wire [11:0] cat_head_mask=cat_head_row(cat_y);
     wire [11:0] cat_face_mask=cat_face_row(cat_y);
+    reg cat_ink;
+    reg [15:0] cat_pixel;
+    wire [5:0] side_left_y=side_left_y_fp[13:8];
+    wire [5:0] side_right_y=side_right_y_fp[13:8];
+
+    always @* begin
+        cat_ink=1'b0;
+        cat_pixel=CYAN;
+        if(cat_visible && cat_box) begin
+            if(cat_x<4'd12 && cat_head_mask[4'd11-cat_x]) begin
+                cat_ink=1'b1;
+                if(cat_face_mask[4'd11-cat_x]) cat_pixel=VIOLET;
+                if(cat_y==4'd1 && (cat_x==4'd2 || cat_x==4'd9)) cat_pixel=PINK;
+                if(cat_mood==CAT_SLEEPY || cat_blink) begin
+                    if(cat_y==4'd4 && ((cat_x>=4'd2 && cat_x<=4'd4) ||
+                       (cat_x>=4'd7 && cat_x<=4'd9))) cat_pixel=WHITE;
+                end else if(cat_mood==CAT_HAPPY || cat_mood==CAT_WINK) begin
+                    if((cat_y==4'd3 && (cat_x==4'd3 || cat_x==4'd8)) ||
+                       (cat_y==4'd4 && (cat_x==4'd2 || cat_x==4'd4 ||
+                                       cat_x==4'd7 || cat_x==4'd9))) cat_pixel=WHITE;
+                    if(cat_mood==CAT_WINK && cat_x==4'd8 && cat_y==4'd4) cat_pixel=GOLD;
+                end else if((cat_y==4'd3 || cat_y==4'd4) && (cat_x==4'd3 || cat_x==4'd8))
+                    cat_pixel=cat_mood==CAT_SAD ? 16'h05BF : WHITE;
+                if(cat_y==4'd5 && (cat_x==4'd1 || cat_x==4'd2 || cat_x==4'd9 || cat_x==4'd10))
+                    cat_pixel=PINK;
+                if(cat_mood==CAT_PANIC) begin
+                    if((cat_y==4'd6 || cat_y==4'd7) && (cat_x==4'd5 || cat_x==4'd6)) cat_pixel=WHITE;
+                end else if(cat_mood==CAT_SAD) begin
+                    if((cat_y==4'd6 && (cat_x==4'd5 || cat_x==4'd6)) ||
+                       (cat_y==4'd7 && (cat_x==4'd4 || cat_x==4'd7))) cat_pixel=WHITE;
+                end else if(cat_mood==CAT_SLEEPY) begin
+                    if(cat_y==4'd7 && (cat_x==4'd5 || cat_x==4'd6)) cat_pixel=PINK;
+                end else if((cat_y==4'd6 && (cat_x==4'd4 || cat_x==4'd7)) ||
+                            (cat_y==4'd7 && (cat_x==4'd5 || cat_x==4'd6))) cat_pixel=WHITE;
+            end
+            if(cat_mood==CAT_PANIC) begin
+                if((cat_x==4'd13 && (cat_y==4'd0 || cat_y==4'd1)) ||
+                   ((cat_x==4'd12 || cat_x==4'd13) && cat_y==4'd2)) begin
+                    cat_ink=1'b1; cat_pixel=anim[3] ? 16'h6EFF : 16'h05BF;
+                end
+            end else if(cat_mood==CAT_HAPPY || cat_mood==CAT_WINK) begin
+                if((cat_x==4'd13 && (cat_y==4'd0 || cat_y==4'd2)) ||
+                   (cat_x==4'd12 && cat_y==4'd1)) begin
+                    cat_ink=1'b1; cat_pixel=anim[3] ? WHITE : GOLD;
+                end
+            end
+        end
+    end
 
     reg [7:0] glyph;
     reg [2:0] glyph_x, glyph_y;
@@ -667,37 +724,7 @@ module pinball_renderer (
                 pixel=FIELD;
                 if (x[3:0]==4'd0 && y[3:0]==4'd0) pixel=FIELD_LIGHT;
             end
-            if (cat_visible && cat_box) begin
-                if (cat_x<4'd12 && cat_head_mask[4'd11-cat_x]) begin
-                    pixel=CYAN;
-                    if (cat_face_mask[4'd11-cat_x]) pixel=VIOLET;
-                    if (cat_y==4'd1 && (cat_x==4'd2 || cat_x==4'd9)) pixel=PINK;
-                    // Gold joy eyes blink; relief uses smiling, closed eyes.
-                    if (cat_relief || (!cat_panic && anim[4])) begin
-                        if ((cat_y==4'd3 && (cat_x==4'd3 || cat_x==4'd8)) ||
-                            (cat_y==4'd4 && (cat_x==4'd2 || cat_x==4'd4 ||
-                                            cat_x==4'd7 || cat_x==4'd9))) pixel=WHITE;
-                    end else if ((cat_y==4'd3 || cat_y==4'd4) &&
-                                 (cat_x==4'd3 || cat_x==4'd8))
-                        pixel=cat_panic ? WHITE : GOLD;
-                    if (cat_y==4'd5 && (cat_x==4'd1 || cat_x==4'd2 ||
-                                        cat_x==4'd9 || cat_x==4'd10)) pixel=PINK;
-                    if (cat_panic) begin
-                        if ((cat_y==4'd6 || cat_y==4'd7) &&
-                            (cat_x==4'd5 || cat_x==4'd6)) pixel=WHITE;
-                    end else if ((cat_y==4'd6 && (cat_x==4'd4 || cat_x==4'd7)) ||
-                                 (cat_y==4'd7 && (cat_x==4'd5 || cat_x==4'd6))) pixel=WHITE;
-                end
-                // A falling sweat drop or twinkling comic spark remains inside
-                // this same 14-column gap; no extra collision surface is drawn.
-                if (cat_panic) begin
-                    if ((cat_x==4'd13 && (cat_y==4'd0 || cat_y==4'd1)) ||
-                        ((cat_x==4'd12 || cat_x==4'd13) && cat_y==4'd2))
-                        pixel=anim[3] ? 16'h6EFF : 16'h05BF;
-                end else if ((cat_x==4'd13 && (cat_y==4'd0 || cat_y==4'd2)) ||
-                             (cat_x==4'd12 && cat_y==4'd1))
-                    pixel=anim[3] ? WHITE : GOLD;
-            end
+            if(cat_ink) pixel=cat_pixel;
             // Paint oldest first, so overlapping history cannot dim the fresh
             // trail head. All trail samples remain behind table objects.
             for (trail_index=7; trail_index>=0; trail_index=trail_index-1) begin
@@ -733,19 +760,18 @@ module pinball_renderer (
             if (x>=7'd86 && x<=7'd92 && y>=6'd56 && y<=6'd61 &&
                 (y[0]==1'b0)) pixel=ORANGE;
 
-            // Side targets have a bright outer face and a shaded inner face.
-            if (((x>=7'd5 && x<=7'd8) || (x>=7'd77 && x<=7'd80)) &&
-                y>=6'd30 && y<=6'd36) begin
-                pixel=((x<=7'd8 && hit_flash[3]) ||
-                       (x>=7'd77 && hit_flash[4])) ? WHITE : PINK;
-                if ((x==7'd7 || x==7'd78) && y>=6'd31 && y<=6'd35)
-                    pixel=((x==7'd7 && hit_flash[3]) ||
-                           (x==7'd78 && hit_flash[4])) ? GOLD : 16'h780F;
+            // Faces and progress lamps follow the same captured Q8 centres
+            // as collision detection. OLED intentionally floors to whole pixels.
+            if (((x>=7'd5 && x<=7'd7) && y>=side_left_y-6'd3 && y<=side_left_y+6'd3) ||
+                ((x>=7'd77 && x<=7'd79) && y>=side_right_y-6'd3 && y<=side_right_y+6'd3)) begin
+                pixel=((x<=7'd7 && hit_flash[3]) || (x>=7'd77 && hit_flash[4])) ? WHITE : PINK;
+                if ((x==7'd6 && y>=side_left_y-6'd2 && y<=side_left_y+6'd2) ||
+                    (x==7'd78 && y>=side_right_y-6'd2 && y<=side_right_y+6'd2))
+                    pixel=((x==7'd6 && hit_flash[3]) || (x==7'd78 && hit_flash[4])) ? GOLD : 16'h780F;
             end
-            if ((x==7'd10 && y>=6'd29 && y<=6'd31) ||
-                (x==7'd74 && y>=6'd29 && y<=6'd31))
-                pixel=((x==7'd10 && target_progress[0]) ||
-                       (x==7'd74 && target_progress[1])) ? GOLD : MUTED;
+            if ((x==7'd10 && y>=side_left_y-6'd4 && y<=side_left_y-6'd2) ||
+                (x==7'd74 && y>=side_right_y-6'd4 && y<=side_right_y-6'd2))
+                pixel=((x==7'd10 && target_progress[0]) || (x==7'd74 && target_progress[1])) ? GOLD : MUTED;
 
             // Pass-through rollover arches: gold lamps mark all three lanes.
             for (object_index=0; object_index<3; object_index=object_index+1) begin
@@ -988,6 +1014,9 @@ module pinball_renderer (
             end
         end
 
+        // Modal panels are opaque; redraw the mascot in their reserved margin.
+        // Its footprint never intersects a heading, score or clickable prompt.
+        if((state==MENU || state==PAUSE || state==OVER) && cat_ink) pixel=cat_pixel;
         glyph_bits=font_3x5(glyph);
         if (glyph_x<3'd3 && glyph_y<3'd5) begin
             if (glyph_bits[4'd14-(glyph_y*2'd3)-glyph_x]) pixel=glyph_color;

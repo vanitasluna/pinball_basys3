@@ -57,8 +57,11 @@ module My_Top_Module (
     reg [2:0] mouse_config;
     always @(posedge clk) if(reset) mouse_config<=0;
         else if(mouse_config<4) mouse_config<=mouse_config+1'b1;
-    wire [11:0] mouse_value = mouse_config==0 ? 12'd95 :
-        mouse_config==1 ? 12'd63 : mouse_config==2 ? 12'd48 : 12'd32;
+    // Keep four raw mouse counts per logical pixel. The supplied controller
+    // retains the fractional movement, so slow gestures accumulate naturally
+    // rather than losing small deltas or accelerating at a screen boundary.
+    wire [11:0] mouse_value = mouse_config==0 ? 12'd383 :
+        mouse_config==1 ? 12'd255 : mouse_config==2 ? 12'd192 : 12'd128;
     MouseCtl mouse(.clk(clk),.rst(reset),.xpos(mouse_x),.ypos(mouse_y),.zpos(mouse_z),
         .left(mouse_left),.middle(mouse_middle),.right(mouse_right),.new_event(mouse_event),
         .value(mouse_value),.setmax_x(!reset && mouse_config==0),
@@ -69,8 +72,8 @@ module My_Top_Module (
     reg mouse_event_d;
     reg [6:0] mouse_cursor_x=7'd48;
     reg [5:0] mouse_cursor_y=6'd32;
-    wire [6:0] packet_cursor_x=mouse_x>95 ? 7'd95 : mouse_x[6:0];
-    wire [5:0] packet_cursor_y=mouse_y>63 ? 6'd63 : mouse_y[5:0];
+    wire [6:0] packet_cursor_x=mouse_x>12'd383 ? 7'd95 : mouse_x[8:2];
+    wire [5:0] packet_cursor_y=mouse_y>12'd255 ? 6'd63 : mouse_y[7:2];
     always @(posedge clk) begin
         if(reset) begin
             mouse_prev<=0; mouse_seen<=0; mouse_event_d<=0;
@@ -159,6 +162,7 @@ module My_Top_Module (
     wire [13:0] ball_y_fp,ball2_y_fp;
     wire [13:0] moving_bumper_y_fp;
     wire [14:0] moving_bumper_x_fp;
+    wire [13:0] side_left_y_fp,side_right_y_fp;
     pinball_physics physics(.clk(clk),.reset(reset),.tick(tick),.active(active),
         .two_ball_mode(two_ball_mode),.balls_visible(balls_visible),.hit_ball(hit_ball),
         .prepare(prepare),.launch(launch),.launch_power(charge),.difficulty(difficulty),
@@ -167,6 +171,7 @@ module My_Top_Module (
         .ball_x_fp(ball_x_fp),.ball_y_fp(ball_y_fp),
         .ball2_x(ball2_x),.ball2_y(ball2_y),.ball2_x_fp(ball2_x_fp),.ball2_y_fp(ball2_y_fp),
         .moving_bumper_y_fp(moving_bumper_y_fp),.moving_bumper_x_fp(moving_bumper_x_fp),
+        .side_left_y_fp(side_left_y_fp),.side_right_y_fp(side_right_y_fp),
         .drained(drained),.hit_events(hit_events),.in_lane(in_lane));
     wire [79:0] particle_x,particle_y,trail_x,trail_y;
     wire [31:0] particle_life;
@@ -201,8 +206,8 @@ module My_Top_Module (
         cursor_x,cursor_y,sw_sync[0] && mouse_seen};
     wire [57:0] live_features={combo,mission_progress,target_progress,save_timer,
         feature_event,feature_timer,last_award_bcd,table_progress,spinner_phase};
-    reg [317:0] oled_scene,oled_transfer;
-    reg [610:0] vga_scene,vga_transfer;
+    reg [345:0] oled_scene,oled_transfer;
+    reg [638:0] vga_scene,vga_transfer;
     // Register derived graphics fields in the 100 MHz producer domain.
     // The 100-to-40 MHz crossing then has only register/wiring delay,
     // rather than position scaling or hit-flash decoding in its 5 ns window.
@@ -210,9 +215,10 @@ module My_Top_Module (
         if(reset) begin oled_transfer<=0;vga_transfer<=0;end
         else begin
             oled_transfer<={live_scene,live_features,display_two_ball_mode,balls_visible,ball2_x,ball2_y,
-                moving_bumper_y_fp,moving_bumper_x_fp,oled_trail_x,oled_trail_y,scene_trail_valid};
+                moving_bumper_y_fp,moving_bumper_x_fp,side_left_y_fp,side_right_y_fp,
+                oled_trail_x,oled_trail_y,scene_trail_valid};
             vga_transfer<={live_scene,live_features,display_two_ball_mode,balls_visible,ball2_x_fp,ball2_y_fp,
-                moving_bumper_y_fp,moving_bumper_x_fp,ball_x_fp,ball_y_fp,
+                moving_bumper_y_fp,moving_bumper_x_fp,side_left_y_fp,side_right_y_fp,ball_x_fp,ball_y_fp,
                 particle_x,particle_y,particle_life,trail_x,trail_y,scene_trail_valid};
         end
     end
@@ -245,9 +251,10 @@ module My_Top_Module (
         .hsync(Hsync),.vsync(Vsync));
 endmodule
 
-module pinball_scene(input wire [317:0] scene,input wire [6:0] x,input wire [5:0] y,output wire [15:0] pixel);
+module pinball_scene(input wire [345:0] scene,input wire [6:0] x,input wire [5:0] y,output wire [15:0] pixel);
     wire [13:0] moving_bumper_y_fp;
     wire [14:0] moving_bumper_x_fp;
+    wire [13:0] side_left_y_fp,side_right_y_fp;
     wire [2:0] state,left_angle,right_angle;
     wire [6:0] ball_x,cursor_x;
     wire [5:0] ball_y,charge,cursor_y;
@@ -275,7 +282,8 @@ module pinball_scene(input wire [317:0] scene,input wire [6:0] x,input wire [5:0
         cursor_visible,combo,mission_progress,target_progress,save_timer,
         feature_event,feature_timer,last_award_bcd,table_progress,spinner_phase,
         two_ball_mode,balls_visible,ball2_x,ball2_y,
-        moving_bumper_y_fp,moving_bumper_x_fp,oled_trail_x,oled_trail_y,trail_valid}=scene;
+        moving_bumper_y_fp,moving_bumper_x_fp,side_left_y_fp,side_right_y_fp,
+        oled_trail_x,oled_trail_y,trail_valid}=scene;
     pinball_renderer graphics(.x(x),.y(y),.state(state),.ball_x(ball_x),.ball_y(ball_y),
         .two_ball_mode(two_ball_mode),.balls_visible(balls_visible),.ball2_x(ball2_x),.ball2_y(ball2_y),
         .left_angle(left_angle),.right_angle(right_angle),.score_bcd(score_bcd),
@@ -286,10 +294,11 @@ module pinball_scene(input wire [317:0] scene,input wire [6:0] x,input wire [5:0
         .target_progress(target_progress),.save_timer(save_timer),.feature_event(feature_event),
         .feature_timer(feature_timer),.last_award_bcd(last_award_bcd),.table_progress(table_progress),.spinner_phase(spinner_phase),
         .moving_bumper_y_fp(moving_bumper_y_fp),.moving_bumper_x_fp(moving_bumper_x_fp),
+        .side_left_y_fp(side_left_y_fp),.side_right_y_fp(side_right_y_fp),
         .oled_trail_x(oled_trail_x),.oled_trail_y(oled_trail_y),.trail_valid(trail_valid),.pixel(pixel));
 endmodule
 
-module pinball_vga_scene(input wire [610:0] scene,input wire [9:0] x,y,output wire [15:0] pixel);
+module pinball_vga_scene(input wire [638:0] scene,input wire [9:0] x,y,output wire [15:0] pixel);
     wire [2:0] state,left_angle,right_angle,combo,mission_progress,feature_event;
     wire [6:0] ball_x,cursor_x;
     wire [5:0] ball_y,charge,cursor_y;
@@ -310,6 +319,7 @@ module pinball_vga_scene(input wire [610:0] scene,input wire [9:0] x,y,output wi
     wire [1:0] balls_visible;
     wire [13:0] moving_bumper_y_fp;
     wire [14:0] moving_bumper_x_fp;
+    wire [13:0] side_left_y_fp,side_right_y_fp;
     wire [79:0] particle_x,particle_y,trail_x,trail_y;
     wire [31:0] particle_life;
     assign {state,ball_x,ball_y,left_angle,right_angle,score_bcd,high_bcd,lives,
@@ -317,7 +327,8 @@ module pinball_vga_scene(input wire [610:0] scene,input wire [9:0] x,y,output wi
         cursor_visible,combo,mission_progress,target_progress,save_timer,feature_event,
         feature_timer,last_award_bcd,table_progress,spinner_phase,
         two_ball_mode,balls_visible,ball2_x_fp,ball2_y_fp,
-        moving_bumper_y_fp,moving_bumper_x_fp,ball_x_fp,ball_y_fp,particle_x,particle_y,
+        moving_bumper_y_fp,moving_bumper_x_fp,side_left_y_fp,side_right_y_fp,
+        ball_x_fp,ball_y_fp,particle_x,particle_y,
         particle_life,trail_x,trail_y,trail_valid}=scene;
     pinball_vga_renderer graphics(.x(x),.y(y),.state(state),.ball_x_fp(ball_x_fp),
         .two_ball_mode(two_ball_mode),.balls_visible(balls_visible),.ball2_x_fp(ball2_x_fp),.ball2_y_fp(ball2_y_fp),
@@ -329,6 +340,7 @@ module pinball_vga_scene(input wire [610:0] scene,input wire [9:0] x,y,output wi
         .target_progress(target_progress),.save_timer(save_timer),.feature_event(feature_event),
         .feature_timer(feature_timer),.last_award_bcd(last_award_bcd),.table_progress(table_progress),.spinner_phase(spinner_phase),
         .moving_bumper_y_fp(moving_bumper_y_fp),.moving_bumper_x_fp(moving_bumper_x_fp),
+        .side_left_y_fp(side_left_y_fp),.side_right_y_fp(side_right_y_fp),
         .particle_x(particle_x),.particle_y(particle_y),.particle_life(particle_life),
         .trail_x(trail_x),.trail_y(trail_y),.trail_valid(trail_valid),.pixel(pixel));
 endmodule

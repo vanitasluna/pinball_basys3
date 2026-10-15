@@ -1,0 +1,1 @@
+-debug "typical" "work.tb_vga_renderer" -s "native_renderer_sim" 

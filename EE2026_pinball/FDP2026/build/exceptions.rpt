@@ -1,7 +1,7 @@
 Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
 ---------------------------------------------------------------------------------------------------------------------------------------------
 | Tool Version : Vivado v.2025.2 (win64) Build 6299465 Fri Nov 14 19:35:11 GMT 2025
-| Date         : Wed Oct 14 15:49:01 2026
+| Date         : Thu Oct 15 13:52:02 2026
 | Host         : Pegasus running 64-bit major release  (build 9200)
 | Command      : report_exceptions -file D:/NUS_Y2_S1/EE2026_prep/EE2026_pinball/FDP2026/build/exceptions.rpt
 | Design       : My_Top_Module
@@ -27,7 +27,9 @@ Position  From                                                                  
                                                                                                             NAME =~ physics/launched*_reg* || NAME =~ physics/drained_reg* || NAME =~ physic                                  
                                                                                                             s/moving_bumper_y_fp_reg* || NAME =~ physics/moving_bumper_x_fp_reg* || NAME =~                                   
                                                                                                             physics/moving_bumper_y_positive_reg* || NAME =~ physics/moving_bumper_x_positiv                                  
-                                                                                                            e_reg*)}]                                                                                                         
+                                                                                                            e_reg* || NAME =~ physics/side_left_y_fp_reg* || NAME =~ physics/side_right_y_fp                                  
+                                                                                                            _reg* || NAME =~ physics/side_left_y_positive_reg* || NAME =~ physics/side_right                                  
+                                                                                                            _y_positive_reg*)}]                                                                                               
 12        [get_cells -hierarchical -filter {REF_NAME =~ FD* && NAME =~ physics/collision_*  *               [get_cells -hierarchical -filter {REF_NAME =~ FD* && (NAME =~ physics/position_*  -               cycles=15       
           _reg* && NAME !~ physics/collision_busy_reg* && NAME !~ physics/collision_wait_r                  _reg* || NAME =~ physics/position2_*_reg* || NAME =~ physics/velocity_*_reg* ||                                   
           eg*}]                                                                                             NAME =~ physics/velocity2_*_reg* || NAME =~ physics/stage_*_reg* || NAME =~ phys                                  
@@ -38,6 +40,8 @@ Position  From                                                                  
                                                                                                             NAME =~ physics/launched*_reg* || NAME =~ physics/drained_reg* || NAME =~ physic                                  
                                                                                                             s/moving_bumper_y_fp_reg* || NAME =~ physics/moving_bumper_x_fp_reg* || NAME =~                                   
                                                                                                             physics/moving_bumper_y_positive_reg* || NAME =~ physics/moving_bumper_x_positiv                                  
-                                                                                                            e_reg*)}]                                                                                                         
+                                                                                                            e_reg* || NAME =~ physics/side_left_y_fp_reg* || NAME =~ physics/side_right_y_fp                                  
+                                                                                                            _reg* || NAME =~ physics/side_left_y_positive_reg* || NAME =~ physics/side_right                                  
+                                                                                                            _y_positive_reg*)}]                                                                                               
 13        [get_clocks sys_clk_pin]                                                          *               [get_ports {{led[*]} {seg[*]} {an[*]} dp PS2Clk PS2Data {JC[7]}}]                 max_dpo=100     -               
 

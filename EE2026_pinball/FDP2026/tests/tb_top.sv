@@ -16,10 +16,11 @@ module tb_top;
     reg [15:0] expected_pixel=0,first_pixel=0,first_serial_pixel=0;
     reg first_pixel_loaded=0;
     reg packet_left=0,packet_middle=0,packet_right=0,packet_event=0;
-    reg [11:0] packet_x=48,packet_y=32;
+    reg [11:0] packet_x=192,packet_y=128;
     integer accepted_clicks=0;
     reg [13:0] scene_probe_y=14'd6432;
     reg [14:0] scene_probe_x=15'd15904;
+    reg [13:0] scene_side_left_y=14'd7552,scene_side_right_y=14'd9344;
     reg [14:0] scene_ball2_x=15'd14112;
     reg [13:0] scene_ball2_y=14'd10048;
     reg tick_probe=0;
@@ -38,18 +39,36 @@ module tb_top;
 
     task mouse_tap(input [11:0] px,py);
         @(negedge clk);packet_left=0;complete_packet(0);
-        @(negedge clk);packet_x=px;packet_y=py;packet_left=1;complete_packet(1);
+        // Menu fixtures use logical pixels; MouseCtl positions are four times
+        // larger so subpixel motion is retained by its protected accumulator.
+        @(negedge clk);packet_x=px<<2;packet_y=py<<2;packet_left=1;complete_packet(1);
         @(negedge clk);packet_left=0;complete_packet(0);
+    endtask
+
+    task cursor_packet(input [11:0] raw_x,raw_y,input [6:0] logical_x,input [5:0] logical_y);
+        reg [6:0] old_x;
+        reg [5:0] old_y;
+        begin
+            old_x=dut.cursor_x;old_y=dut.cursor_y;
+            @(negedge clk);packet_x=raw_x;packet_y=raw_y;
+            repeat(3) @(posedge clk);#2;
+            if(dut.cursor_x!==old_x || dut.cursor_y!==old_y)
+                $fatal(1,"Raw subpixel movement escaped the complete-packet boundary");
+            complete_packet(0);
+            if(dut.cursor_x!==logical_x || dut.cursor_y!==logical_y ||
+               dut.mouse_cursor_x!==logical_x || dut.mouse_cursor_y!==logical_y)
+                $fatal(1,"Quarter-speed cursor wrong for raw position %0d,%0d",raw_x,raw_y);
+        end
     endtask
 
     // Observe configuration requests at the exact edge sampled by MouseCtl.
     always @(posedge clk) if(!dut.reset) begin
         if(dut.mouse_click) accepted_clicks=accepted_clicks+1;
         case(dut.mouse_config)
-            0: begin if(dut.mouse_value!==12'd95) $fatal(1,"Mouse X bound wrong"); config_x=config_x+1; end
-            1: begin if(dut.mouse_value!==12'd63) $fatal(1,"Mouse Y bound wrong"); config_y=config_y+1; end
-            2: begin if(dut.mouse_value!==12'd48) $fatal(1,"Mouse X centering wrong"); center_x=center_x+1; end
-            3: begin if(dut.mouse_value!==12'd32) $fatal(1,"Mouse Y centering wrong"); center_y=center_y+1; end
+            0: begin if(dut.mouse_value!==12'd383) $fatal(1,"Mouse X bound wrong"); config_x=config_x+1; end
+            1: begin if(dut.mouse_value!==12'd255) $fatal(1,"Mouse Y bound wrong"); config_y=config_y+1; end
+            2: begin if(dut.mouse_value!==12'd192) $fatal(1,"Mouse X centering wrong"); center_x=center_x+1; end
+            3: begin if(dut.mouse_value!==12'd128) $fatal(1,"Mouse Y centering wrong"); center_y=center_y+1; end
         endcase
     end
 
@@ -138,7 +157,8 @@ module tb_top;
         repeat(56) @(posedge clk); #2;
         if(dut.reset || dut.mouse_config!=4) $fatal(1,"Power-on reset/configuration failed to complete");
         if(config_x!=1 || config_y!=1 || center_x!=1 || center_y!=1) $fatal(1,"Mouse configuration requests must each occur once");
-        if(dut.mouse_x!==12'd48 || dut.mouse_y!==12'd32) $fatal(1,"Protected MouseCtl did not apply initial position");
+        if(dut.mouse_x!==12'd192 || dut.mouse_y!==12'd128) $fatal(1,"Protected MouseCtl did not apply initial raw position");
+        if(dut.cursor_x!==48 || dut.cursor_y!==32) $fatal(1,"Mouse logical position did not stay centered");
         if(dut.mouse_seen || dut.mouse_click || dut.left_pressed || dut.right_pressed || dut.launch_down)
             $fatal(1,"Missing mouse injected a game action");
         if($isunknown({JC,led,seg,an,dp,Hsync,Vsync,vgaRed,vgaGreen,vgaBlue,dut.buttons,dut.state}))
@@ -158,6 +178,8 @@ module tb_top;
         // fractional moving centres, then remain frozen between frame starts.
         force dut.moving_bumper_y_fp=scene_probe_y;
         force dut.moving_bumper_x_fp=scene_probe_x;
+        force dut.side_left_y_fp=scene_side_left_y;
+        force dut.side_right_y_fp=scene_side_right_y;
         force dut.ball2_x=7'd55;force dut.ball2_y=6'd39;
         force dut.ball2_x_fp=scene_ball2_x;force dut.ball2_y_fp=scene_ball2_y;
         force dut.balls_visible=2'b11;force dut.display_two_ball_mode=1'b1;
@@ -171,20 +193,32 @@ module tb_top;
            dut.vga_graphics.moving_bumper_y_fp!==scene_probe_y ||
            dut.vga_graphics.moving_bumper_x_fp!==scene_probe_x)
             $fatal(1,"Moving centres were truncated, reordered or omitted in a display frame");
+        if(dut.oled_graphics.side_left_y_fp!==scene_side_left_y ||
+           dut.oled_graphics.side_right_y_fp!==scene_side_right_y ||
+           dut.vga_graphics.side_left_y_fp!==scene_side_left_y ||
+           dut.vga_graphics.side_right_y_fp!==scene_side_right_y)
+            $fatal(1,"Moving side targets were truncated, reordered or omitted in a display frame");
         if(dut.oled_graphics.ball2_x!==55 || dut.oled_graphics.ball2_y!==39 ||
            dut.vga_graphics.ball2_x_fp!==scene_ball2_x || dut.vga_graphics.ball2_y_fp!==scene_ball2_y ||
            dut.oled_graphics.balls_visible!==3 || dut.vga_graphics.balls_visible!==3 ||
            !dut.oled_graphics.two_ball_mode || !dut.vga_graphics.two_ball_mode)
             $fatal(1,"Two-ball coordinates, visibility or mode omitted from frame snapshot");
         scene_probe_y=14'd7168;scene_probe_x=15'd16896;
+        scene_side_left_y=14'd9472;scene_side_right_y=14'd7424;
         scene_ball2_x=15'd16640;scene_ball2_y=14'd12800;
         repeat(4) @(posedge clk); #2;
         if(dut.oled_graphics.moving_bumper_y_fp!==14'd6432 ||
            dut.vga_graphics.moving_bumper_x_fp!==15'd15904)
             $fatal(1,"Moving objects changed before the next display frame");
+        if(dut.oled_graphics.side_left_y_fp!==14'd7552 ||
+           dut.oled_graphics.side_right_y_fp!==14'd9344 ||
+           dut.vga_graphics.side_left_y_fp!==14'd7552 ||
+           dut.vga_graphics.side_right_y_fp!==14'd9344)
+            $fatal(1,"Moving side targets changed before the next display frame");
         if(dut.vga_graphics.ball2_x_fp!==15'd14112 || dut.vga_graphics.ball2_y_fp!==14'd10048)
             $fatal(1,"Second ball changed before the next display frame");
         release dut.moving_bumper_y_fp;release dut.moving_bumper_x_fp;
+        release dut.side_left_y_fp;release dut.side_right_y_fp;
         release dut.ball2_x;release dut.ball2_y;release dut.ball2_x_fp;release dut.ball2_y_fp;
         release dut.balls_visible;release dut.display_two_ball_mode;
 
@@ -220,7 +254,7 @@ module tb_top;
         force dut.mouse_event=packet_event;
         force dut.mouse_x=packet_x;
         force dut.mouse_y=packet_y;
-        @(negedge clk); packet_left=1; packet_x=60; packet_y=35;
+        @(negedge clk); packet_left=1; packet_x=240; packet_y=140;
         repeat(4) @(posedge clk); #2;
         if(dut.mouse_click || dut.mouse_seen || dut.mouse_prev!==0 || dut.state!==0 || dut.difficulty!==1)
             $fatal(1,"Mouse byte 1 triggered a click before packet completion");
@@ -230,7 +264,7 @@ module tb_top;
         @(posedge clk); #2;
         if(!dut.mouse_click || !dut.mouse_seen || dut.mouse_prev!==0 || dut.state!==0)
             $fatal(1,"First complete mouse click was lost or consumed too early");
-        packet_y=25; #1;
+        packet_y=100; #1;
         if(dut.cursor_y!==25 || dut.mouse_level!==0 || !dut.mouse_mode)
             $fatal(1,"New mouse Y was not available for delayed packet dispatch");
         @(negedge clk); packet_event=0;
@@ -242,7 +276,7 @@ module tb_top;
         if(!dut.menu_two_ball_mode || accepted_clicks!=1 || dut.state!==0)
             $fatal(1,"Holding a mode-row click repeated the toggle");
         @(negedge clk);packet_left=0;complete_packet(0);
-        @(negedge clk);packet_left=1;packet_y=44;complete_packet(1);
+        @(negedge clk);packet_left=1;packet_y=176;complete_packet(1);
         repeat(3) @(posedge clk);#2;
         if(dut.state!==1 || !dut.two_ball_mode || dut.balls_visible!==2'b11 || dut.ball2_y!==60)
             $fatal(1,"Menu choice did not prepare two balls on mouse start");
@@ -315,7 +349,7 @@ module tb_top;
         if(dut.state!==0 || !dut.menu_two_ball_mode || !dut.display_two_ball_mode)
             $fatal(1,"Chosen two-ball mode was not retained on menu return");
         // Menu mouse toggles work in both directions; SW1 cannot force either.
-        @(negedge clk);packet_left=1;packet_y=25;complete_packet(1);
+        @(negedge clk);packet_left=1;packet_y=100;complete_packet(1);
         if(dut.menu_two_ball_mode || dut.state!==0) $fatal(1,"Mode click did not select one ball");
         @(negedge clk);packet_left=0;complete_packet(0);
         sw[1]=0;repeat(8) @(posedge clk);#2;
@@ -330,19 +364,47 @@ module tb_top;
         mouse_tap(5,35);
         if(dut.state!==0 || dut.difficulty!==1) $fatal(1,"Margin click changed difficulty");
         // Button and coordinate bytes remain isolated until packet completion.
-        @(negedge clk);packet_middle=1;packet_right=1;packet_x=80;packet_y=60;
+        @(negedge clk);packet_middle=1;packet_right=1;packet_x=320;packet_y=240;
         repeat(4) @(posedge clk);#2;
         if(dut.right_pressed || dut.launch_down || dut.cursor_x!==5 || dut.cursor_y!==35)
             $fatal(1,"Partial mouse packet activated controls or tore coordinates");
         complete_packet(0);
         if(!dut.right_pressed || !dut.launch_down || dut.cursor_x!==80 || dut.cursor_y!==60)
             $fatal(1,"Completed mouse packet did not publish its controls and position");
-        @(negedge clk);packet_middle=0;packet_right=0;packet_x=1;packet_y=1;
+        @(negedge clk);packet_middle=0;packet_right=0;packet_x=4;packet_y=4;
         repeat(4) @(posedge clk);#2;
         if(!dut.right_pressed || !dut.launch_down || dut.cursor_x!==80 || dut.cursor_y!==60)
             $fatal(1,"Partial release byte cleared committed controls");
         complete_packet(0);
         if(dut.right_pressed || dut.launch_down) $fatal(1,"Complete release packet did not release controls");
+        // Fine motion retains two fractional bits in the raw controller. A
+        // four-count change moves one logical pixel in either direction.
+        cursor_packet(192,128,48,32);
+        cursor_packet(195,131,48,32);
+        cursor_packet(196,132,49,33);
+        cursor_packet(193,129,48,32);
+        cursor_packet(0,0,0,0);
+        cursor_packet(3,3,0,0);
+        cursor_packet(4,4,1,1);
+        cursor_packet(380,252,95,63);
+        cursor_packet(383,255,95,63);
+        // Defensive publication clamp also handles an invalid/raw stale value
+        // outside the configured controller range without wrapping the cursor.
+        cursor_packet(4095,4095,95,63);
+        cursor_packet(0,255,0,63);
+        cursor_packet(383,0,95,0);
+        // Hit testing uses the same divided coordinate as both renderers.
+        // Logical X=21 misses the difficulty row; X=22 is its first valid pixel.
+        @(negedge clk);packet_x=87;packet_y=143;packet_left=1;complete_packet(1);
+        if(dut.cursor_x!==21 || dut.cursor_y!==35 || dut.mouse_level || dut.difficulty!==1)
+            $fatal(1,"A fractional raw click outside the displayed widget changed difficulty");
+        @(negedge clk);packet_left=0;complete_packet(0);
+        @(negedge clk);packet_x=88;packet_left=1;complete_packet(1);
+        if(dut.cursor_x!==22 || dut.cursor_y!==35 || !dut.mouse_level || dut.difficulty!==0)
+            $fatal(1,"Click dispatch did not align with the quarter-speed displayed cursor");
+        @(negedge clk);packet_left=0;complete_packet(0);
+        mouse_tap(48,35);
+        if(dut.difficulty!==1) $fatal(1,"Mouse difficulty fixture did not restore normal mode");
         // Exercise the restart widget with a valid terminal-state fixture.
         @(negedge clk);dut.game.state=3'd4;dut.game.lives=0;
         dut.physics.ball1_alive=0;dut.physics.ball2_alive=0;
@@ -366,8 +428,9 @@ module tb_top;
         if(!dut.reset || JC[7]!==0 || dut.state!==0 || dut.two_ball_mode || dut.menu_two_ball_mode)
             $fatal(1,"SW15 system reset failed");
         sw[15]=0; repeat(20) @(posedge clk); #2;
-        if(dut.reset || dut.mouse_x!==48 || dut.mouse_y!==32) $fatal(1,"Reset release failed to reconfigure mouse");
-        $display("PASS tb_top: complete mouse button/cursor packets, bounded start/resume/restart widgets, menu mode choice, ignored SW1, held-input rejection, simultaneous U/C capture, pause, survivor trail, paired launch, atomic frames, reset, protected drivers and JC SPI");
+        if(dut.reset || dut.mouse_x!==192 || dut.mouse_y!==128) $fatal(1,"Reset release failed to reconfigure raw mouse position");
+        if(dut.cursor_x!==48 || dut.cursor_y!==32) $fatal(1,"Reset release failed to recenter logical cursor");
+        $display("PASS tb_top: quarter-speed complete mouse packets, subpixel motion, endpoint clamps, aligned clicks, bounded start/resume/restart widgets, menu mode choice, ignored SW1, held-input rejection, simultaneous U/C capture, pause, survivor trail, paired launch, atomic frames, reset, protected drivers and JC SPI");
         $finish;
     end
     initial begin #2000000; $fatal(1,"tb_top timeout"); end

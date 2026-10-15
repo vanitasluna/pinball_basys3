@@ -2,7 +2,7 @@
 
 Pinball for the Basys 3, targeting **xc7a35tcpg236-1**. The primary display is a **96 x 64 Pmod OLEDrgb on JC**. A simultaneous **native 800 x 600 VGA renderer** draws the same game with crisp curves, a glossy ball, beveled rails, a larger HUD, particles and subpixel motion. The OLED uses a compact renderer of the same live game state. A mouse is optional; every game action is available on the board.
 
-The finalized routed build uses **88.37% of LUTs** (18,380/20,800), **8.56% of registers**, 54 of 90 DSPs and no block RAM. All twelve simulation suites passed, including the reproduced-and-fixed long-interval debounce overflow. An independent geometry oracle passed 18,231 bounded bumper segment checks. Worst setup/hold slack is +0.380/+0.052 ns, with zero failing endpoints. The programming file is `build/pinball_basys3.bit`. Finalization retains the preceding bug-audit build's resource counts and gameplay. See `docs/VALIDATION.md` for review coverage, full reports and pending physical board checks.
+The current routed build uses **91.46% of LUTs** (19,024/20,800), **9.01% of registers**, 51 of 90 DSPs and no block RAM. All twelve simulation suites passed, including all 64 launch powers on all difficulties in both ball modes. A fresh independent geometry oracle passed 18,231 bounded bumper segment checks. Worst setup/hold slack is +0.101/+0.046 ns, with zero failing endpoints. The programming file is `build/pinball_basys3.bit`. The preceding working 88.37% LUT build is preserved under `build/pre_experience/`. See `docs/VALIDATION.md` for review coverage, full reports and remaining physical board checks.
 
 The implementation follows the supplied EE2026 proposal's physics, collision, graphics, and game/input components. The proposal's scheduling and member-responsibility text was treated as background. The user's hardware specification determines the OLED display and FPGA part. The supplied `Oled_Display.v`, `Mouse_Control.vhd` (`MouseCtl`), and its `Ps2Interface.vhd` dependency are preserved byte for byte.
 
@@ -35,12 +35,21 @@ While C is held, the power meter repeatedly rises from 0 to 63 and falls back to
 - **Stand-up target bank:** hit all three small targets to collect an extra 4 points. They remain solid when lit and reset after the reward.
 - **Spinner:** crossing the rotating paddle scores 0.5 base points and starts a short spin animation.
 - **Slingshots:** two diamond kickers above the flippers return the ball with an inward impulse and score 0.5 base points.
+- **Moving side targets:** the left and right rectangular targets travel vertically between center y29 and y37, starting at y33 in opposite directions, at 3.75 logical pixels/second. Faces, progress lamps, collision positions and scoring rearm follow the same moving geometry.
 - **Moving bumpers:** the left bumper travels vertically (x26, y22..28); the right travels horizontally (y22, x58..66). Both move at 3.75 logical pixels/second, and dotted paths mark their travel. The center bumper stays fixed.
 - **Nudge:** press C or click the mouse middle button during play to give a small upward and inward impulse. It is limited to once every two seconds and has no effect in the launcher lane.
 
 The ball radius is one OLED pixel (previously two), and the bumper radius is three (previously four). The smaller geometry opens space for nine additional scoring contacts while preserving usable paths between objects. The large screen renders those same shapes with eight native pixels per logical table unit and Q8 ball movement.
 
-The lower playfield limits downward ball speed to about 71 logical pixels per second. An open descent from y38 to the flipper pivots at y53 takes approximately 212.5 ms in the simulation. Flippers complete their raise in four physics ticks (16.7 ms), and the board input debounce is five milliseconds. A fresh press produces a stronger return than holding a raised flipper, allowing timing to matter while keeping descent readable. The upper playfield retains faster upward shots.
+Difficulty is now gentler at every level. Easy uses half the previous Easy gravity; Normal uses the previous Easy gravity; Hard uses the previous Normal gravity. Downward speed limits also depend on the level. The lower-field limit starts at y38, giving a longer open descent to the flippers on Easy. Flippers still fully raise in four physics ticks (16.7 ms), with a 5 ms board debounce.
+
+| Level | Gravity (logical pixels/s²) | Upper downward speed limit | Lower downward speed limit | Open capped y38 to y53 descent |
+| --- | --- | --- | --- | --- |
+| Easy | 112.5 | 105 pixels/s | 45 pixels/s | 333 ms |
+| Normal | 225 | 127.5 pixels/s | 56.25 pixels/s | 267 ms |
+| Hard | 450 | 150 pixels/s | 67.5 pixels/s | 225 ms |
+
+These times describe an unobstructed, already capped descent; collisions change the path. Horizontal and upward caps, flipper strength, lives, awards and protection rules remain shared between levels.
 
 A base contact is multiplied by the combo; mission, lane, target-bank, target-pair and gold rewards are added afterward. Score saturates at 9999 and appears on both screens and the four-digit seven-segment display. The best score survives restarts until SW15 or power cycling. Pause freezes physics and feature timers while allowing an already accepted collision transaction to finish.
 
@@ -48,9 +57,9 @@ A base contact is multiplied by the combo; mission, lane, target-bank, target-pa
 
 The interface uses navy/violet panels, cyan action borders and hover feedback, gold objectives, and magenta scoring effects. Mode, difficulty and action cards match their mouse regions; board controls remain visible on the prompts. OLED keeps score and hearts visible while its compact award badge replaces only combo/label space. Small lamps show which balls remain alive, while VGA uses a readable mode/survivor chip. Segmented charge gauges, moving rail lights, shaded flippers, subtle circuit patterns, illuminated object rims and fading impact sparks add feedback without changing collision geometry. Two rotating four-spark bursts retain rapid impacts from both balls instead of discarding the previous contact.
 
-An original circuit cat adds short anime-style reactions on both screens: reward cheers, nudge panic and saved-ball relief. It uses a free upper-left table corner, with the saved READY pose shifted down to clear the OLED charge meter. VGA adds YATTA!, NANI! and PHEW! speech bubbles; OLED uses compact animated faces. Reactions last up to half a second of the current notification and stay hidden in menu, pause and game over. The mascot body stays behind trails and objects, and live balls remain above the effects. `docs/funny_preview.png` shows three actual RTL reaction examples.
+The original circuit cat now **stays on both screens in every game state**. It cycles through idle, happy and winking faces with blinking and a gentle bob; fresh rewards, nudges and saved balls temporarily trigger cheerful, panicked or relieved reactions. Pause has a sleepy face and game over a sad face. State-specific empty margins keep its face clear of headings, action buttons, score and lives. The READY cat sits below the charge meter; live balls and trails remain above it. VGA retains short YATTA!, NANI! and PHEW! captions for fresh reactions. `docs/funny_preview.png` shows actual RTL reactions, and the ordinary state previews show its persistent poses.
 
-Mouse clicks only activate the visible mode, difficulty, Start, Resume and Restart regions; clicking the title, score or margins does nothing. Button levels and cursor coordinates are published only after a complete mouse packet. If a drain and pause/resume arrive together, the prepared next life follows the requested pause state. Late impacts retain their effects through pause, and the surviving gold ball starts a clean trail after white drains. Live balls remain visible when the cursor overlaps them. Fast diagonal shots use swept collision checks at stand-up corners and sling tips, so they rebound instead of passing through those solid objects.
+The mouse pointer now uses four raw mouse counts per logical pixel, making it **four times slower** while retaining tiny movements. Clicks and held buttons still use complete packets, and the cursor reaches every screen edge. Mouse clicks only activate the visible mode, difficulty, Start, Resume and Restart regions; clicking the title, score or margins does nothing. Button levels and cursor coordinates are published only after a complete mouse packet. If a drain and pause/resume arrive together, the prepared next life follows the requested pause state. Late impacts retain their effects through pause, and the surviving gold ball starts a clean trail after white drains. Live balls remain visible when the cursor overlaps them. Fast diagonal shots use swept collision checks at stand-up corners and sling tips, so they rebound instead of passing through those solid objects.
 
 
 LEDs 0-2 show remaining lives; LED3 shows enabled mouse activity; LEDs4-8 show charge; LEDs9-10 show difficulty; LED11 shows an active bonus; LED12 shows the shooter lane; LED13 shows play; LED14 shows pause; LED15 shows game over.
@@ -81,11 +90,11 @@ From this project directory in PowerShell:
 ```powershell
 $pinballProject=(Get-Location).Path
 New-Item -ItemType Directory -Force -Path (Join-Path $pinballProject 'build') | Out-Null
-& 'D:\2025.2\Vivado\bin\vivado.bat' -mode batch -source (Join-Path $pinballProject 'scripts/build.tcl') -log (Join-Path $pinballProject 'build/finalization.log') -journal (Join-Path $pinballProject 'build/finalization.jou')
+& 'D:\2025.2\Vivado\bin\vivado.bat' -mode batch -source (Join-Path $pinballProject 'scripts/build.tcl') -log (Join-Path $pinballProject 'build/experience_final.log') -journal (Join-Path $pinballProject 'build/experience_final.jou')
 & .\scripts\simulate.ps1
 python .\scripts\verify_project.py
 python .\scripts\render_previews.py
-python .\scripts\record_validation.py --build-log finalization.log
+python .\scripts\record_validation.py --build-log experience_final.log
 ```
 
 Create the `build` directory before choosing log/journal paths there. The batch build does not depend on the original author's desktop path. It reads the mixed Verilog/VHDL sources, synthesizes, applies implementation-only collision constraints after registers are mapped, places, routes, checks setup and hold slack, writes reports and checkpoints, then produces the bitstream. `simulate.ps1` accepts a `-VivadoBin` path if Vivado is installed elsewhere, and `-Tests tb_game` can run an individual bench. All twelve benches are also registered in the project's simulation source set; `tb_top` is the default GUI simulation top. Preview generation requires Pillow. The self-checking tests check game rules, input debouncing, ball movement and collisions, VGA timing, complete renderer frames, and top-level OLED/mouse integration. Top-level simulation can accelerate OLED startup delays without changing the protected source; that test does not measure real power sequencing delays.
@@ -94,7 +103,9 @@ See `docs/DESIGN_NOTES.md` for the layout, moving-object integration, game-feel 
 
 ## Architecture and project knowledge
 
-Read [the detailed code and rebuilding guide](docs/PROJECT_CODE_GUIDE.md), or its [printable PDF](output/pdf/EE2026_Pinball_Code_Guide.pdf), for module connections, EE2026 concepts, worked examples, display timing, verification and a staged plan for writing a new FPGA game. Guide sources and regeneration instructions are in [docs/guide_source](docs/guide_source/README.md).
+The design before quarter-speed mouse control, the persistent mascot, moving side targets and gentler difficulties is preserved in `build/pre_experience/`. This revision was reviewed again after implementation; regression cases cover pointer/click alignment, matching target edges, all launch powers, shared two-ball world state and persistent mascot layering.
+
+Read [the detailed code and rebuilding guide (14 October design snapshot)](docs/PROJECT_CODE_GUIDE.md), or its [printable PDF](output/pdf/EE2026_Pinball_Code_Guide.pdf), for module connections, EE2026 concepts, worked examples, display timing, verification and a staged plan for writing a new FPGA game. Guide sources and regeneration instructions are in [docs/guide_source](docs/guide_source/README.md).
 
 The routed build before this visual polish is preserved under `build/pre_visual_polish/`, including its programming file, checkpoint, reports, RTL, previews and manifest. The preceding build before blue protection feedback remains under `build/pre_protection_blue/`.
 
@@ -109,7 +120,7 @@ The complete design before finalization is preserved under `build/pre_finalizati
 | `My_Top_Module` | Clocks, power-on reset, mouse setup, optional controls, frame snapshots, display integration |
 | `pinball_input` | Two-stage button synchronization, independent 5 ms debounce configured by the top, single-cycle press events |
 | `pinball_game` | Mode latch, lives, bouncing charge, half-point accumulation and pipelined BCD score, high score, combos, missions, finite saves and spinner animation |
-| `pinball_physics` | Shared two-ball Q8 motion/collision scheduling, atomic pair/world commit, separate contact cooldowns, final-ball drains, gravity, speed bounds, flippers and queued nudge |
+| `pinball_physics` | Shared two-ball Q8 motion/collision scheduling, atomic pair/world commit, moving bumpers/side targets, separate contact cooldowns, fractional gravity, difficulty speed bounds, final-ball drains, flippers and queued nudge |
 | `pinball_collision` | Table interactions, relative-velocity/swept bumper contacts, position corrections, bouncing, hit masks |
 | `pinball_renderer` | OLED table, 3 x 5 font, glossy ball, impact rings, mission/target lamps, combo/save HUD, trails and award toasts |
 | `pinball_vga` | 800 x 600 pixel coordinates, active video, sync and RGB output |
@@ -124,7 +135,7 @@ The VGA renderer maps Q8 ball coordinates directly to native pixels, preserving 
 
 Physics is fixed-point arithmetic rather than floating point. The table uses pixels as its spatial unit and includes gravity, acceleration, dissipative wall reflections, energized bumpers, two moving flippers, two side targets, three rollover lanes, a spinner, two energized slings, three stand-up targets, a shooter lane and a central drain. Difficulty adjusts motion. Contacts are corrected before the next update and scoring is rearmed after separation. The simplified collision model avoids division by a changing value, square roots, and trigonometry; it is designed for this small FPGA and display.
 
-The mouse module's real position ports are **12 bits**, despite stale comments about ten bits. The wrapper initializes its bounds to 95/63 and center to 48/32 after reset. The mouse stays on 100 MHz because its supplied PS/2 interface uses cycle counts for protocol delays. Board controls work independently of mouse detection. Normal restart leaves OLED power sequencing running; only full reset restarts the display. Human-visible outputs, the OLED power enable, and asynchronous PS/2 pins have a conservative 100 ns register-to-pin propagation bound rather than an invented 100 MHz receiving clock. The OLED SPI and VGA interfaces keep their clock-based output requirements.
+The mouse module's real position ports are **12 bits**, despite stale comments about ten bits. The wrapper initializes raw bounds to 383/255 and center to 192/128 after reset, then divides complete coordinates by four to produce logical bounds 95/63 and center 48/32. The mouse stays on 100 MHz because its supplied PS/2 interface uses cycle counts for protocol delays. Board controls work independently of mouse detection. Normal restart leaves OLED power sequencing running; only full reset restarts the display. Human-visible outputs, the OLED power enable, and asynchronous PS/2 pins have a conservative 100 ns register-to-pin propagation bound rather than an invented 100 MHz receiving clock. The OLED SPI and VGA interfaces keep their clock-based output requirements.
 
 Primary hardware references used during implementation:
 

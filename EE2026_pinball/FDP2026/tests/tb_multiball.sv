@@ -3,12 +3,13 @@ module tb_multiball;
     reg clk=0; always #5 clk=!clk;
     reg reset=1, tick=0, active=1, prepare=0, launch=0, two_ball_mode=1;
     reg [5:0] launch_power=16;
-    reg [1:0] difficulty=0;
+    reg [1:0] difficulty=1;
     reg left_pressed=0, right_pressed=0, nudge=0;
     wire [6:0] ball_x,ball2_x;
     wire [5:0] ball_y,ball2_y;
     wire [14:0] ball_x_fp,ball2_x_fp,moving_bumper_x_fp;
     wire [13:0] ball_y_fp,ball2_y_fp,moving_bumper_y_fp,hit_events;
+    wire [13:0] side_left_y_fp,side_right_y_fp;
     wire [1:0] balls_visible;
     wire [2:0] left_angle,right_angle;
     wire drained,in_lane,hit_ball;
@@ -97,16 +98,22 @@ module tb_multiball;
             cycle;
             check(dut.collision_busy && dut.position_x==saved_x && dut.position_y==saved_y &&
                 dut.position2_x==saved2_x && dut.position2_y==saved2_y &&
-                moving_bumper_y_fp==22*256 && moving_bumper_x_fp==58*256,
+                moving_bumper_y_fp==22*256 && moving_bumper_x_fp==58*256 &&
+                side_left_y_fp==33*256 && side_right_y_fp==33*256,
                 "neither ball nor moving centre commits before the complete two-ball batch");
             check(dut.collision_moving_bumper_next_y==22*256+4 &&
                 dut.collision_moving_bumper_next_x==58*256+4,
                 "both calculations retain the same next world geometry during pause");
+            check(dut.collision_side_left_next_y==33*256+4 &&
+                dut.collision_side_right_next_y==33*256-4 &&
+                dut.collision_side_left_velocity_y==4 && dut.collision_side_right_velocity_y==-4,
+                "both ball calculations retain one shared opposite side-target motion");
         end
         cycle;
         check(!dut.collision_busy && dut.position_y==saved_y-303 &&
             dut.position2_y==saved2_y-303 && moving_bumper_y_fp==22*256+4 &&
-            moving_bumper_x_fp==58*256+4 && left_angle==1,
+            moving_bumper_x_fp==58*256+4 && left_angle==1 &&
+            side_left_y_fp==33*256+4 && side_right_y_fp==33*256-4,
             "accepted pair commits atomically after 33 clocks and advances world/flipper once");
         saved_y=dut.position_y;saved2_y=dut.position2_y;
         repeat(4) step;
@@ -139,7 +146,7 @@ module tb_multiball;
             step;check(drains==before_drain+1 && !dut.launched && !dut.launched2,
                 "uncontrolled completed round remains frozen without a repeated drain");
         end
-        difficulty=0;launch_power=16;
+        difficulty=1;launch_power=16;
         prepare_pair;shoot;place_both_on_bumper;
         before0=event0;before1=event1;step;
         check(event0==before0+1 && event1==before1+1 && event_mask0==14'h1 &&
@@ -241,9 +248,58 @@ module tb_multiball;
             @(negedge clk);prepare=0;reset=0;repeat(45) cycle;
             check(balls_visible==3 && ball_y==56 && ball2_y==60 && !dut.collision_busy &&
                 !dut.launched && !dut.launched2 && hit_events==0 && !drained &&
-                dut.pending_hit_wait==0 && moving_bumper_y_fp==22*256,
+                dut.pending_hit_wait==0 && moving_bumper_y_fp==22*256 &&
+                side_left_y_fp==33*256 && side_right_y_fp==33*256 && !dut.gravity_phase,
                 "prepare/reset cancels both staged positions and deferred event/drain state");
         end
+        // Exercise every possible shot power in pair mode. The second ball
+        // starts lower and must also reach the exit without another launch.
+        for(d=0;d<3;d=d+1) for(p=0;p<64;p=p+1) begin
+            difficulty=d;launch_power=p;prepare_pair;shoot;
+            for(n=0;n<200 && (dut.ball1_in_lane || dut.ball2_in_lane);n=n+1)step;
+            check(!dut.ball1_in_lane && !dut.ball2_in_lane && balls_visible==3,
+                "all 64 powers clear both shooter lanes on every difficulty");
+        end
+        launch_power=16;
+
+        // Easy's half-gravity phase advances per WORLD, never per ball.
+        // Equal initial conditions must remain equal through both isolated
+        // snapshots; side tracks must move once, not twice, for the pair.
+        for(d=0;d<3;d=d+1) begin
+            difficulty=d;prepare_pair;shoot;
+            @(negedge clk);dut.ball1_in_lane=0;dut.ball2_in_lane=0;
+            dut.position_x=70*256;dut.position2_x=70*256;
+            dut.position_y=12*256;dut.position2_y=12*256;
+            dut.velocity_x=0;dut.velocity2_x=0;dut.velocity_y=0;dut.velocity2_y=0;
+            for(n=1;n<=20;n=n+1) begin
+                step;
+                check(dut.velocity_y==((d==0)?n/2:((d==1)?n:2*n)) &&
+                    dut.velocity2_y==dut.velocity_y && dut.position2_y==dut.position_y,
+                    "both balls consume identical 0.5/1/2 gravity for one shared world step");
+                check(side_left_y_fp==33*256+4*n && side_right_y_fp==33*256-4*n,
+                    "each side target moves once per accepted two-ball world");
+            end
+        end
+        difficulty=1;prepare_pair;shoot;
+        before0=event0;before1=event1;
+        for(n=0;n<23;n=n+1) begin
+            @(negedge clk);dut.ball1_in_lane=0;dut.ball2_in_lane=0;
+            dut.position_x=8*256;dut.position2_x=8*256;
+            dut.position_y=side_left_y_fp;dut.position2_y=side_left_y_fp;
+            dut.velocity_x=-200;dut.velocity2_x=-200;dut.velocity_y=0;dut.velocity2_y=0;step;
+            check(event0==before0+1 && event1==before1+1 &&
+                !dut.hit_armed[3] && !dut.hit_armed2[3],
+                "moving side target awards both contacts independently and cannot repeat during contact");
+        end
+        @(negedge clk);dut.position_x=43*256;dut.position_y=44*256;
+        dut.velocity_x=0;dut.velocity_y=0;step;
+        check(dut.hit_armed[3] && !dut.hit_armed2[3],
+            "leaving moving side envelope rearms only the ball which left");
+        @(negedge clk);dut.position_x=8*256;dut.position_y=side_left_y_fp;
+        dut.velocity_x=-200;dut.velocity_y=0;step;
+        check(event0==before0+2 && event1==before1+1,
+            "moving side reentry preserves independent per-ball scoring state");
+
         // Selecting one ball restores the original presentation and exact
         // 16-clock update latency; the unused ball cannot launch or move.
         two_ball_mode=0;prepare_pair;shoot;

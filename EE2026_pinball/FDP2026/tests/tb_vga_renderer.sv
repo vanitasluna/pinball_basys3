@@ -10,6 +10,7 @@ module tb_vga_renderer;
     reg [1:0] balls_visible=2'b01;
     reg [13:0] moving_bumper_y_fp=14'd5632;
     reg [14:0] moving_bumper_x_fp=15'd14848;
+    reg [13:0] side_left_y_fp=14'd8448,side_right_y_fp=14'd8448;
     reg [2:0] left_angle=4,right_angle=1;
     reg [15:0] score_bcd=16'h0018,high_bcd=16'h0092;
     reg [1:0] lives=3,difficulty=1;
@@ -124,6 +125,18 @@ module tb_vga_renderer;
             $fatal(1,"Horizontal native bumper fractional position was lost");
         moving_bumper_y_fp=14'd5632;moving_bumper_x_fp=15'd14848;
         bonus_active=1;mission_progress=3'b101;
+        // Side-bank native faces preserve fractional Q8 vertical movement.
+        side_left_y_fp=14'd7552;side_right_y_fp=14'd9344; //29.5 and36.5.
+        expect_pixel(64,244,16'hFFFF);expect_pixel(64,268,16'hFF20);
+        expect_pixel(640,324,16'h700D);expect_pixel(648,348,16'hF89D);
+        expect_pixel(73,268,16'h1048);expect_pixel(649,324,16'h1048);
+        side_left_y_fp=14'd7584;expect_pixel(68,245,16'hFFFF); // +1 native pixel.
+        x=68;y=244;#1;if(pixel===16'hFFFF)$fatal(1,"Native side target lost fractional movement");
+        side_left_y_fp=14'd9472;side_right_y_fp=14'd7424; //37 and29.
+        expect_pixel(64,352,16'hF89D);expect_pixel(648,240,16'hFFFF);
+        hit_flash=14'd8;expect_pixel(64,328,16'hFFFF);expect_pixel(640,264,16'h700D);
+        hit_flash=14'd16;expect_pixel(64,328,16'hFF20);expect_pixel(640,264,16'hFFFF);
+        hit_flash=0;side_left_y_fp=14'd8448;side_right_y_fp=14'd8448;
         expect_pixel(216,144,16'hFF20); // Completed rollover lane lamp.
         expect_pixel(488,144,16'h6B6E); // Incomplete third lane lamp.
         expect_pixel(288,192,16'hFC80); // Completed first stand-up target.
@@ -318,35 +331,50 @@ module tb_vga_renderer;
             $fatal(1,"Native OVER footer clips MENU or advertises live controls");
         x=464;y=306;#1;
         if(dut.glyph!=="8")$fatal(1,"Native game-over score lost its fourth BCD digit");
-        // An original small cameo is brief and reserved for major rewards,
-        // nudges and an actual saved turn. Frequent combo events stay quiet.
-        state=2;feature_timer=0;feature_event=3;save_timer=0;
-        cursor_visible=0;anim=39;balls_visible=1;
-        x=70;y=128;#1;cat_background=pixel;
-        feature_timer=240;expect_pixel(70,128,16'h07FF);
-        expect_pixel(76,152,16'hFF20); // Joy star-eye spoke.
+        // Persistent mascot is visible without events in every state, even
+        // after opaque menu/modal panels paint. All coordinates remain clear
+        // of the existing headings, controls, score and footer.
+        state=2;feature_timer=0;feature_event=0;save_timer=0;
+        cursor_visible=0;anim=8;balls_visible=1;trail_valid=0;
+        for(frame=0;frame<5;frame=frame+1) begin
+            state=frame;
+            case(frame)
+                0:expect_pixel(70,128,16'h07FF);
+                1:expect_pixel(70,184,16'h07FF);
+                2:expect_pixel(70,128,16'h07FF);
+                3:expect_pixel(70,128,16'h07FF);
+                4:expect_pixel(70,128,16'h07FF);
+            endcase
+        end
+        state=2;expect_pixel(76,150,16'hFFFF); // Idle open eye.
+        anim=0;expect_pixel(76,150,16'h2810); // Brief automatic blink.
+        anim=96;expect_pixel(76,154,16'hFFFF); // Playful closed-eye wink + bob.
+        anim=168;expect_pixel(76,154,16'hFF20); // Idle cycle reaches gold joy eyes.
+        anim=40;expect_pixel(70,130,16'h07FF);
+        x=70;y=128;#1;if(pixel===16'h07FF)$fatal(1,"Native breathing pose left old cat outline");
+        anim=8;feature_event=3;feature_timer=240;
+        expect_pixel(76,152,16'hFF20); // Fresh major reward star-eye spoke.
         x=124;y=141;#1;
         if(dut.glyph!=="Y" || dut.text_message!==48)$fatal(1,"Major reward lacks YATTA caption");
-        feature_timer=121;expect_pixel(70,128,16'h07FF);
-        feature_timer=120;expect_pixel(70,128,cat_background);
-        feature_timer=0;expect_pixel(70,128,cat_background);
+        feature_timer=121;expect_pixel(76,152,16'hFF20);
+        feature_timer=120;expect_pixel(76,152,16'hFFFF);
+        x=124;y=141;#1;if(dut.comic_caption)$fatal(1,"Expired reward retained speech ink");
+        feature_timer=0;expect_pixel(70,128,16'h07FF);
         feature_timer=240;feature_event=2;combo=1;
-        expect_pixel(70,128,cat_background);combo=4;
-        expect_pixel(70,128,cat_background);
-        feature_event=6;expect_pixel(86,162,16'hF89D); // Open panic mouth.
+        expect_pixel(76,152,16'hFFFF);combo=4;expect_pixel(76,152,16'hFFFF);
+        feature_event=6;expect_pixel(86,162,16'hF89D); // Panic open mouth.
         x=124;y=141;#1;
         if(dut.glyph!=="N" || dut.text_message!==49)$fatal(1,"Nudge lacks NANI caption");
-        state=1;feature_timer=0;feature_event=4;
-        x=70;y=192;#1;cat_background=pixel;
-        feature_timer=240;expect_pixel(70,192,16'h07FF);
-        expect_pixel(76,216,16'hFFFF); // Saved-turn wink.
-        x=124;y=205;#1;
+        state=1;feature_event=4;expect_pixel(70,184,16'h07FF);
+        expect_pixel(76,208,16'hFFFF); // Saved-turn wink safely above side target.
+        x=124;y=197;#1;
         if(dut.glyph!=="P" || dut.text_message!==50)$fatal(1,"Saved READY turn lacks PHEW caption");
-        feature_event=3;expect_pixel(70,192,cat_background);
-        for(frame=0;frame<5;frame=frame+1) if(frame!=1 && frame!=2) begin
-            state=frame;feature_timer=0;x=70;y=128;#1;cat_background=pixel;
-            feature_event=3;feature_timer=240;expect_pixel(70,128,cat_background);
-        end
+        feature_event=3;x=124;y=197;#1;
+        if(dut.comic_caption)$fatal(1,"READY stale reward generated a speech bubble");
+        state=3;expect_pixel(76,152,16'hFFFF); // Sleepy closed eye.
+        state=4;expect_pixel(76,154,16'h05BF); // Sad eye.
+        feature_event=6;expect_pixel(76,154,16'h05BF); // Modal mood beats stale event.
+        trail_valid=8'hFF;
         // The cameo cannot cover score/SAFE or either live ball, even when
         // a ball is deliberately placed directly over its face.
         state=2;feature_event=3;feature_timer=240;two_ball_mode=1;balls_visible=3;
@@ -402,6 +430,8 @@ module tb_vga_renderer;
         for(frame=0;frame<3;frame=frame+1) begin
             moving_bumper_y_fp=frame==0 ? 14'd5632 : frame==1 ? 14'd6432 : 14'd7168;
             moving_bumper_x_fp=frame==0 ? 15'd14848 : frame==1 ? 15'd15904 : 15'd16896;
+            side_left_y_fp=frame==0 ? 14'd8448 : frame==1 ? 14'd7552 : 14'd7424;
+            side_right_y_fp=frame==0 ? 14'd8448 : frame==1 ? 14'd9344 : 14'd9472;
             hit_flash=frame==2 ? 14'd3 : 0;
             $sformat(filename,"../vga_render_motion_%0d.hex",frame);
             fd=$fopen(filename,"w");if(fd==0)$fatal(1,"Cannot create moving native dump");
@@ -454,7 +484,7 @@ module tb_vga_renderer;
             end
             $fclose(fd);
         end
-        $display("PASS tb_vga_renderer: anime gates, trail/HUD/ball priority, hover/countdown and sixteen complete frames (7680000 pixels)");
+        $display("PASS tb_vga_renderer: persistent six-mood cat, moving side banks, trail/HUD/ball priority, hover/countdown and sixteen complete frames (7680000 pixels)");
         $finish;
     end
 endmodule

@@ -8,6 +8,7 @@ module tb_renderer;
     reg [1:0] balls_visible=2'b01;
     reg [13:0] moving_bumper_y_fp=14'd5632;
     reg [14:0] moving_bumper_x_fp=15'd14848;
+    reg [13:0] side_left_y_fp=14'd8448,side_right_y_fp=14'd8448;
     reg [2:0] state=2,left_angle=4,right_angle=1;
     reg [15:0] score_bcd=16'h0018,high_bcd=16'h0092;
     reg [1:0] lives=3,difficulty=1,bonus_target=1;
@@ -119,6 +120,20 @@ module tb_renderer;
             $fatal(1,"OLED must floor the same Q8 bumper positions used by VGA");
         moving_bumper_y_fp=14'd5632;moving_bumper_x_fp=15'd14848;
         bonus_active=1;mission_progress=3'b101;
+        // Both vertically moving side-bank faces, shading and lamps follow
+        // their Q8 centres. Fractional motion floors only on this tiny output.
+        side_left_y_fp=14'd7552;side_right_y_fp=14'd9344; //29.5 and36.5.
+        expect_pixel(6,26,16'hF89D);expect_pixel(6,29,16'h780F);
+        expect_pixel(7,29,16'hF89D);expect_pixel(8,29,16'h1048);
+        expect_pixel(10,25,16'hFEA0);expect_pixel(79,39,16'hF89D);
+        expect_pixel(80,36,16'h1048); // No face beyond collision-matched width.
+        expect_pixel(74,32,16'h4A8A);
+        x=6;y=36;#1;if(pixel===16'hF89D)$fatal(1,"OLED old side-target face left a ghost");
+        side_left_y_fp=14'd9472;side_right_y_fp=14'd7424; //37 and29.
+        expect_pixel(6,40,16'hF89D);expect_pixel(79,26,16'hF89D);
+        hit_flash=14'd8;expect_pixel(5,37,16'hFFFF);expect_pixel(79,29,16'hF89D);
+        hit_flash=14'd16;expect_pixel(5,37,16'hF89D);expect_pixel(79,29,16'hFFFF);
+        hit_flash=0;side_left_y_fp=14'd8448;side_right_y_fp=14'd8448;
         // Award badges occupy only the former combo/L slot: every score digit
         // and life remains readable even during sustained award activity.
         feature_timer=100;feature_event=7;
@@ -263,42 +278,49 @@ module tb_renderer;
         expect_pixel(60,14,16'hF89D);expect_pixel(18,14,16'h0843);
         charge=0;expect_pixel(20,14,16'h0843);
         charge=47;two_ball_mode=0;balls_visible=1;
-        // Original circuit-cat reactions activate only for the first half of
-        // major award/nudge/save notifications. Ordinary combos never sustain
-        // the cameo, and modal screens cannot display a stale expression.
-        state=2;save_timer=0;feature_timer=240;anim=0;
-        for(i=1;i<=7;i=i+1) begin
-            feature_event=i;
-            expect_pixel(6,12,i==2 ? 16'h1048 : 16'h07FF);
-        end
-        feature_event=2;combo=1;expect_pixel(6,12,16'h1048);
-        combo=4;expect_pixel(6,12,16'h1048);
-        feature_event=0;expect_pixel(6,12,16'h1048);
-        feature_event=3;feature_timer=120;expect_pixel(6,12,16'h1048);
-        feature_timer=121;expect_pixel(6,12,16'h07FF);
-        feature_timer=0;expect_pixel(6,12,16'h1048);
-        feature_timer=240;
-        expect_pixel(8,15,16'hFEA0); // Open joy eye.
-        expect_pixel(7,16,16'h2810);
-        anim=16;expect_pixel(7,16,16'hFFFF); // Happy blinking eye.
-        anim=0;feature_event=6;
-        expect_pixel(10,18,16'hFFFF); // Panic opens a rectangular mouth.
-        expect_pixel(18,12,16'h05BF); // Cyan comic sweat drop.
-        feature_event=4;expect_pixel(7,16,16'hFFFF); // Relieved closed eyes.
-        expect_pixel(10,18,16'h2810); // Smile keeps the middle mouth row dark.
-        feature_event=3;expect_pixel(19,12,16'h1048); // Clipped safe-gap footprint.
-        expect_pixel(4,1,16'hFFFF);expect_pixel(52,1,16'hF9A8);
+        // Persistent mascot must survive every opaque state overlay, while
+        // keeping the existing text and hit regions clear. Idle needs no event.
+        trail_valid=0;save_timer=0;feature_timer=0;feature_event=0;anim=8;
         for(s=0;s<5;s=s+1) begin
-            if(s!=2) begin
-                state=s;feature_event=0;x=6;y=12;#1;hidden_cat_pixel=pixel;
-                feature_event=3;expect_pixel(6,12,hidden_cat_pixel);
-            end
+            state=s;
+            case(s)
+                0:expect_pixel(6,23,16'h07FF);
+                1:expect_pixel(11,20,16'h07FF);
+                2:expect_pixel(6,12,16'h07FF);
+                3:expect_pixel(11,21,16'h07FF);
+                4:expect_pixel(11,34,16'h07FF);
+            endcase
         end
-        state=1;feature_event=4;
-        expect_pixel(6,20,16'h07FF); // Saved READY pose shifts below charge bar.
-        expect_pixel(6,12,16'h1048);
-        expect_pixel(20,14,16'h07FF); // Charge UI remains fully readable.
-        feature_timer=120;expect_pixel(6,20,16'h1048);
+        state=2;expect_pixel(8,15,16'hFFFF); // Open idle eyes.
+        expect_pixel(7,16,16'h2810);
+        anim=0;expect_pixel(8,15,16'h2810);expect_pixel(7,16,16'hFFFF); // Blink.
+        anim=96;expect_pixel(13,17,16'hFEA0); // Automatic wink, one-pixel bob.
+        anim=168;expect_pixel(7,17,16'hFFFF); // Automatic smiling expression.
+        anim=40;expect_pixel(6,13,16'h07FF);expect_pixel(6,12,16'h1048); // Breath.
+        anim=8;feature_timer=240;
+        for(i=1;i<=7;i=i+1) begin
+            feature_event=i;expect_pixel(6,12,16'h07FF);
+        end
+        feature_event=2;combo=1;expect_pixel(7,16,16'h2810);
+        combo=4;expect_pixel(7,16,16'h2810); // Frequent combos leave idle face.
+        feature_event=3;expect_pixel(7,16,16'hFFFF); // Fresh reward smiles.
+        feature_timer=121;expect_pixel(7,16,16'hFFFF);
+        feature_timer=120;expect_pixel(7,16,16'h2810); // Expiry returns to idle.
+        feature_timer=0;expect_pixel(6,12,16'h07FF);
+        feature_timer=240;feature_event=6;
+        expect_pixel(10,18,16'hFFFF);expect_pixel(18,12,16'h6EFF); // Panic.
+        feature_event=4;expect_pixel(7,16,16'hFFFF); // Saved-turn wink.
+        expect_pixel(10,18,16'h2810);
+        feature_event=3;expect_pixel(19,12,16'h1048); // Safe-gap footprint.
+        expect_pixel(4,1,16'hFFFF);expect_pixel(52,1,16'hF9A8); // Score/lives.
+        state=3;expect_pixel(13,25,16'hFFFF); // Sleepy closed eye.
+        state=4;expect_pixel(13,37,16'h05BF); // Sad game-over eye.
+        feature_event=6;expect_pixel(13,37,16'h05BF); // Stale events cannot win.
+        state=1;feature_event=4;expect_pixel(11,20,16'h07FF);
+        expect_pixel(12,24,16'hFFFF); // READY wink remains below charge meter.
+        expect_pixel(20,14,16'h07FF);
+        feature_timer=120;expect_pixel(12,24,16'h2810);
+
         state=2;feature_event=3;feature_timer=240;trail_valid=1;
         oled_trail_x[6:0]=6;oled_trail_y[5:0]=12;
         expect_pixel(6,12,16'h7BF0); // Trail paints above the cameo.
@@ -342,6 +364,8 @@ module tb_renderer;
         for(s=0;s<3;s=s+1) begin
             moving_bumper_y_fp=s==0 ? 14'd5632 : s==1 ? 14'd6432 : 14'd7168;
             moving_bumper_x_fp=s==0 ? 15'd14848 : s==1 ? 15'd15904 : 15'd16896;
+            side_left_y_fp=s==0 ? 14'd8448 : s==1 ? 14'd7552 : 14'd7424;
+            side_right_y_fp=s==0 ? 14'd8448 : s==1 ? 14'd9344 : 14'd9472;
             hit_flash=s==2 ? 14'd3 : 0;
             $sformat(path,"../render_motion_%0d.hex",s);
             f=$fopen(path,"w");if(!f)$fatal(1,"Cannot open OLED motion output");
@@ -394,7 +418,7 @@ module tb_renderer;
             end
             $fclose(f);
         end
-        $display("PASS tb_renderer: bounded original reactions, persistent HUD, independent two-ball visibility/menu/queued sprites, moving bumpers and sixteen complete frames (98304 pixels)");
+        $display("PASS tb_renderer: persistent six-mood mascot, moving side banks, persistent HUD, independent two-ball visibility/menu/queued sprites, moving bumpers and sixteen complete frames (98304 pixels)");
         $finish;
     end
 endmodule

@@ -1,5 +1,19 @@
 # Expanded table and game feel
 
+## Experience tuning - 15 October 2026
+
+The mouse wrapper configures the protected controller for raw bounds 383/255 and center 192/128, then divides complete coordinates by four. Fractional movement stays in the supplied controller, so small gestures accumulate and reversing direction responds immediately. Cursor drawing and click dispatch consume the same scaled coordinates; button semantics are unchanged. The supplied OLED and mouse modules remain byte-identical.
+
+Both side target centers now move between y29 and y37, starting at 33 in opposite directions at 3.75 logical pixels/second. Drawn faces are centered at x6/78 with halfwidth 1 and halfheight 3; adding the radius-one ball gives collision halfwidth 2 and halfheight 4. OLED faces span x5..7/77..79; native VGA faces span x56..72/632..648. The final review removed an inherited extra renderer column so no visible edge extends beyond the collision geometry. Progress lamps move with the same centers. Relative old/new positions and surface velocities provide swept contacts and meaningful responses; per-ball cooldown/rearm tracks the current target. A coarse selector shares one rectangle sweep among five separated rectangles to limit arithmetic cost.
+
+Targets use the same isolated transaction and 16/33-clock world commit as the bumpers and balls. Their positions and directions never advance once per ball. Side outputs are part of the 346-bit OLED and 639-bit native VGA frame snapshots. Scoped timing exceptions include only stable side snapshot-to-result paths; no crossing is hidden with a false path.
+
+Gravity is Easy/Normal/Hard=0.5/1/2 Q8 units per step, corresponding to 112.5/225/450 logical pixels/s². Easy alternates 0/1 using one phase per accepted world transaction; the second ball uses the captured gravity and difficulty. Upper downward caps 112/136/160 and lower caps 48/60/72 give 105/127.5/150 and 45/56.25/67.5 pixels/s. Capped open y38 to y53 descent takes 80/64/54 physics steps, about 333/267/225 ms. All 64 launch powers are tested on all three levels in both modes; representative idle shots must eventually drain. Lives, saves, scoring, launch sweep and flipper response retain their earlier contracts.
+
+The persistent procedural cat has idle, happy, wink, panic, sad and sleepy moods. Blink, bob and spontaneous expressions reuse the existing animation register; fresh events temporarily override idle. Event overrides expire at feature_timer 120, and pause/game-over moods take precedence over retained event codes. The face is present in every game state, with state-specific empty margins and a later redraw over modal panels. Trails, objects and live balls retain their higher gameplay priority. VGA speech boxes remain brief event reactions. READY placement clears the moving target faces and the charge meter.
+
+The completed change was reread across all custom RTL. Focused tests check edge reachability and click alignment, all-state mascot visibility and clipping, old/new target bounds, moving surface approaches and near misses, pause/reset cancellation, correct per-ball rearming and exact shared-world commit timing. The current `VALIDATION.md` records the fresh build and regression evidence; the preceding working bitstream and sources are under `build/pre_experience/`.
+
 ## Final code review and coding conventions
 
 Every custom RTL module and the supplied display/mouse interfaces were reviewed for state/event priority, bounded signed arithmetic, reset behavior and display timing. The supplied `Oled_Display.v`, `Mouse_Control.vhd` and `Ps2Interface.vhd` remain byte-identical. Custom Verilog uses explicit net/port types and a scoped `default_nettype none` guard, restored to `wire` after each file so the supplied sources compile normally. State encodings and key timing constants have explicit widths. Clocked state uses nonblocking assignments; combinational paths use blocking assignments with defaults and complete cases. Physics coordinates are signed Q8; unsigned display coordinates are clipped before drawing. Related display-clock crossings remain timed, and multicycle exceptions apply only to stable collision snapshots.
@@ -13,7 +27,7 @@ The table uses the same logical coordinates and rules on the 96×64 OLED and nat
 | Contact | Logical position | Behavior |
 | --- | --- | --- |
 | Three bumpers | Left x26/y22–28; right y22/x58–66; center (42,35) | Two move on bounded tracks; energized rebound; 0.5 base points; complete all for +5 |
-| Two side targets | Left/right edges around y33 | Reflect; 1 base point; both award +2.5 and a six-second save |
+| Two side targets | x6/78; centers y29..37 in opposite directions | Reflect; 1 base point; both award +2.5 and a six-second save |
 | Three rollover lanes | x25,42,59; y12–16 | Pass through; 0.5 base points; all three award +3 |
 | Spinner | (42,27), width 8 | Pass through; 0.5 base points; paddle continues turning briefly |
 | Two diamond slings | (17,41), (69,41) | Energized radial/inward rebound; 0.5 base points |
@@ -47,7 +61,7 @@ The side guides end at their flipper pivots: x21 on the left and x65 on the righ
 
 Stand-up targets and slings now sweep their finite clearance faces as well as checking the proposed point. A legal fast diagonal or horizontal step can enter and leave a corner while both endpoints remain outside; endpoint-only checks missed those impacts. One selected-face intercept per object shares two variable products, rejects near misses without division, and relies on the existing bounded step. Diamond slings transform x/y into x+y/x−y coordinates to reuse the rectangle helper. Focused mirrored hit/near-miss tests and natural freeplay verify these changes.
 
-Horizontal speed is limited to ±1 logical pixel per tick, upward speed to 1.25, and descent to 0.625 in the upper table. Below y38, descent is limited to 76/256 pixel per tick, approximately 71.25 pixels per second. The open y38→53 descent test takes 51 ticks, or 212.5 ms. This is a design target for readable play, not a claim that every player's reaction time is the same. Collisions can redirect the path.
+Horizontal speed remains limited to ±1 logical pixel per tick and upward speed to 1.25. Downward limits now depend on difficulty as documented above, with a separate gentler lower-field cap from y38. These are design targets for readable play; collisions redirect the path and players have different reaction times.
 
 The flippers rise over four ticks, with an energized return while moving and a weaker return when held. Board buttons use a five-millisecond debounce; mouse controls bypass that board switch filter. Idle released flippers dissipate energy and let the ball roll toward the drain. Minimum, light and full launches are tested on all three difficulties, including eventual unattended drains.
 
@@ -75,7 +89,7 @@ Segmented charge gauges, moving rail lights, shaded flippers, sparse circuit pat
 
 The visual direction adapts the luminous circuit atmosphere of [Stern TRON](https://www.sternpinball.com/game/tron/) and the clear feature lighting shown in [Zen Studios' Tesla table guide](https://www.pinballfx.com/press/table_guides/Tesla_Table_Guide_By_ShoryukenToTheChin.pdf). The RTL uses original procedural graphics, with no copied game assets. Native VGA remains 800×600 with 480,000 individual pixels per frame, versus 6,144 OLED pixels; it uses independent fine text, shading and Q8 motion instead of enlarging the OLED bitmap. `VALIDATION.md` and actual RTL previews provide demonstration evidence for the high-resolution and smart-UI features.
 
-The added circuit cat is original procedural pixel art. Gold/mission/target/table rewards use cheerful expressions; nudge uses a shocked face with sweat; a saved turn uses a relieved wink. The current feature timer limits the cameo to its first half-second. Generic combo event2 is excluded because every later combo hit refreshes it. Only PLAY and saved-event READY can show reactions; menu, pause and game over hide them. OLED uses x5..18/y12..20 during play and y20..28 during saved READY, keeping the meter and side lamps clear. Native VGA renders a larger face and speech bubble in the equivalent safe corner. Existing feature data shows the latest notification, so closely spaced awards can replace a reaction. Actual sample poses are in `funny_preview.png`.
+The circuit cat is original procedural pixel art and is now persistent in all states. The experience-tuning section above describes its idle/context moods, state placement, event expiry and gameplay layering. Both compact OLED and native VGA render it from constant masks and existing animation/state fields, without importing bitmap assets or adding a framebuffer.
 
 ## References used
 

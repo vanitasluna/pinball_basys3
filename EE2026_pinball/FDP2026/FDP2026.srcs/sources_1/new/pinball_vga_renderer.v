@@ -16,6 +16,8 @@ module pinball_vga_renderer (
     input wire [1:0] balls_visible,
     input wire [13:0] moving_bumper_y_fp,
     input wire [14:0] moving_bumper_x_fp,
+    input wire [13:0] side_left_y_fp,
+    input wire [13:0] side_right_y_fp,
     input wire [2:0] left_angle, right_angle,
     input wire [15:0] score_bcd, high_bcd,
     input wire [1:0] lives, difficulty,
@@ -352,24 +354,71 @@ module pinball_vga_renderer (
     wire in_button=button_active && x>=button_left && x<=button_right &&
         xy>=button_tl && xy<=button_br && x_minus_y<=button_tr && x_minus_y>=button_bl;
     wire [3:0] arrow_row=y[3] ? 4'd0-y[3:0] : y[3:0];
-    // Combo event2 refreshes on every contact: leave it quiet. Major rewards
-    // and the short nudge/save reactions last only their first half-second.
-    wire cat_reward=feature_event==1 || feature_event==3 || feature_event==5 || feature_event==7;
-    wire cat_active=feature_timer>120 &&
-        ((state==PLAY && (cat_reward || feature_event==4 || feature_event==6)) ||
-         (state==READY && feature_event==4));
-    wire cat_box=x>=64 && x<112 &&
-        (state==READY ? (y>=192 && y<240) : (y>=128 && y<176));
-    wire [4:0] cat_x=x[5:1],cat_y=y[5:1];
+    // Persistent original mascot: all states have a clear left-hand margin.
+    // Only fresh major events override its idle/blink/playful expression cycle.
+    localparam [2:0] CAT_IDLE=3'd0, CAT_HAPPY=3'd1, CAT_WINK=3'd2,
+                     CAT_PANIC=3'd3, CAT_SAD=3'd4, CAT_SLEEPY=3'd5;
+    wire cat_fresh=feature_timer>10'd120;
+    wire cat_relief=cat_fresh && feature_event==3'd4 && (state==PLAY || state==READY);
+    wire cat_panic=cat_fresh && feature_event==3'd6 && state==PLAY;
+    wire cat_reward=cat_fresh && state==PLAY &&
+        (feature_event==3'd1 || feature_event==3'd3 || feature_event==3'd5 || feature_event==3'd7);
+    wire cat_reaction=cat_relief || cat_panic || cat_reward;
+    wire [2:0] cat_mood=state==OVER ? CAT_SAD : state==PAUSE ? CAT_SLEEPY :
+        cat_panic ? CAT_PANIC : cat_relief ? CAT_WINK : cat_reward ? CAT_HAPPY :
+        anim[7:5]==3'd3 ? CAT_WINK : anim[7:5]==3'd5 ? CAT_HAPPY : CAT_IDLE;
+    wire cat_active=state<=OVER;
+    wire [9:0] cat_top=(state==READY ? 10'd184 : 10'd128)+{8'd0,anim[5],1'b0};
+    wire cat_box=x>=10'd64 && x<10'd112 && y>=cat_top && y<cat_top+10'd48;
+    wire [9:0] cat_dy=y-cat_top;
+    wire [4:0] cat_x=x[5:1],cat_y=cat_dy[5:1];
     wire [47:0] cat_masks=circuit_cat_row(cat_y);
     wire [23:0] cat_outline=cat_masks[47:24],cat_fill=cat_masks[23:0];
-    wire cat_blink=anim[6:3]==0;
+    wire cat_blink=anim[6:2]==5'd0;
     wire cat_left_eye=cat_x>=5 && cat_x<=9;
     wire cat_right_eye=cat_x>=14 && cat_x<=18;
-    wire [9:0] cat_bubble_top=state==READY ? 10'd200 : 10'd136;
-    wire [9:0] cat_caption_y=state==READY ? 10'd205 : 10'd141;
-    wire comic_caption=cat_active && x>=124 && x<172 &&
+    wire [9:0] cat_bubble_top=cat_top+10'd8;
+    wire [9:0] cat_caption_y=cat_top+10'd13;
+    wire comic_caption=cat_reaction && x>=124 && x<172 &&
                        y>=cat_caption_y && y<cat_caption_y+7;
+    reg cat_ink;
+    reg [15:0] cat_pixel;
+    wire [9:0] side_left_y=10'd32+{1'b0,side_left_y_fp[13:5]};
+    wire [9:0] side_right_y=10'd32+{1'b0,side_right_y_fp[13:5]};
+
+    always @* begin
+        cat_ink=1'b0;
+        cat_pixel=CYAN;
+        if(cat_active && cat_box && cat_outline[5'd23-cat_x]) begin
+            cat_ink=1'b1;
+            cat_pixel=cat_fill[5'd23-cat_x] ? VIOLET : CYAN;
+            if(cat_y>=5'd3 && cat_y<=5'd6 &&
+               ((cat_x>=5'd3 && cat_x<=5'd5) || (cat_x>=5'd18 && cat_x<=5'd20))) cat_pixel=PINK;
+            if(cat_y==5'd15 && ((cat_x>=5'd3 && cat_x<=5'd6) ||
+               (cat_x>=5'd17 && cat_x<=5'd20))) cat_pixel=PINK;
+            if(cat_y>=5'd10 && cat_y<=5'd14 && (cat_left_eye || cat_right_eye)) begin
+                if(cat_blink || cat_mood==CAT_SLEEPY || (cat_mood==CAT_WINK && cat_left_eye)) begin
+                    if(cat_y==5'd12) cat_pixel=WHITE;
+                end else if(cat_mood==CAT_HAPPY) begin
+                    if(cat_y==5'd12 || cat_x==5'd7 || cat_x==5'd16) cat_pixel=GOLD;
+                    if(cat_y==5'd12 && (cat_x==5'd7 || cat_x==5'd16)) cat_pixel=WHITE;
+                end else if(cat_mood==CAT_SAD) begin
+                    if(cat_y==5'd13 || ((cat_x==5'd7 || cat_x==5'd16) && cat_y==5'd14)) cat_pixel=16'h05BF;
+                end else if(cat_y>=5'd11 && cat_y<=5'd13) cat_pixel=WHITE;
+            end
+            if(cat_mood==CAT_PANIC) begin
+                if(cat_x>=5'd10 && cat_x<=5'd13 && cat_y>=5'd16 && cat_y<=5'd19)
+                    cat_pixel=(cat_x==5'd10 || cat_x==5'd13 || cat_y==5'd16 || cat_y==5'd19) ? WHITE : PINK;
+                if(cat_x>=5'd21 && cat_y>=5'd5 && cat_y<=5'd8) cat_pixel=CYAN;
+            end else if(cat_mood==CAT_SAD) begin
+                if((cat_y==5'd17 && cat_x>=5'd10 && cat_x<=5'd13) ||
+                   (cat_y==5'd18 && (cat_x==5'd9 || cat_x==5'd14))) cat_pixel=WHITE;
+            end else if(cat_mood==CAT_SLEEPY) begin
+                if(cat_y==5'd18 && (cat_x==5'd11 || cat_x==5'd12)) cat_pixel=PINK;
+            end else if((cat_y==5'd18 && cat_x>=5'd10 && cat_x<=5'd13) ||
+                       (cat_y==5'd17 && (cat_x==5'd9 || cat_x==5'd14))) cat_pixel=WHITE;
+        end
+    end
 
     // A single font decoder serves HUD, instructions and transient feedback.
     reg text_enable;
@@ -413,35 +462,12 @@ module pinball_vga_renderer (
         if((y==32 || y==543) && x>=16 && x<=783)
             pixel=x[7:4]==anim[7:4] ? CYAN_DARK : VIOLET;
 
-        // Original chibi cameo is a background decoration: motion, obstacles
-        // and live balls always stay readable above its face and speech box.
-        if(cat_active) begin
-            if(cat_box && cat_outline[5'd23-cat_x]) begin
-                pixel=cat_fill[5'd23-cat_x] ? VIOLET : CYAN;
-                if(cat_y>=3 && cat_y<=6 &&
-                   ((cat_x>=3 && cat_x<=5) || (cat_x>=18 && cat_x<=20))) pixel=PINK;
-                if(cat_y==15 && ((cat_x>=3 && cat_x<=6) || (cat_x>=17 && cat_x<=20))) pixel=PINK;
-                if(cat_y>=10 && cat_y<=14 && (cat_left_eye || cat_right_eye)) begin
-                    if(cat_blink || (feature_event==4 && cat_left_eye)) begin
-                        if(cat_y==12) pixel=WHITE;
-                    end else if(cat_reward) begin
-                        if(cat_y==12 || cat_x==7 || cat_x==16) pixel=GOLD;
-                        if(cat_y==12 && (cat_x==7 || cat_x==16)) pixel=WHITE;
-                    end else if(cat_y>=11 && cat_y<=13)
-                        pixel=WHITE;
-                end
-                if(feature_event==6) begin
-                    if(cat_x>=10 && cat_x<=13 && cat_y>=16 && cat_y<=19)
-                        pixel=(cat_x==10 || cat_x==13 || cat_y==16 || cat_y==19) ? WHITE : PINK;
-                    if(cat_x>=21 && cat_y>=5 && cat_y<=8) pixel=CYAN;
-                end else if((cat_y==18 && cat_x>=10 && cat_x<=13) ||
-                    (cat_y==17 && (cat_x==9 || cat_x==14))) pixel=WHITE;
-            end
-            if(x>=116 && x<=184 && y>=cat_bubble_top && y<=cat_bubble_top+16) begin
-                pixel=PANEL;
-                if(x==116 || x==184 || y==cat_bubble_top || y==cat_bubble_top+16)
-                    pixel=feature_event==6 ? CYAN : PINK;
-            end
+        // Persistent face remains below the entire physical table and trails.
+        if(cat_ink) pixel=cat_pixel;
+        if(cat_reaction && x>=116 && x<=184 && y>=cat_bubble_top && y<=cat_bubble_top+16) begin
+            pixel=PANEL;
+            if(x==116 || x==184 || y==cat_bubble_top || y==cat_bubble_top+16)
+                pixel=cat_panic ? CYAN : PINK;
         end
 
         // Oldest first: fresh samples stay bright where their squares overlap.
@@ -518,13 +544,17 @@ module pinball_vga_renderer (
                 if(y==184) pixel=WHITE;
             end
         end
-        // Existing side-bank target faces and their progress lamps.
-        if(y>=272 && y<=320 && ((x>=56 && x<=80) || (x>=632 && x<=656))) begin
+        // Q8 motion resolves 1/8 of a logical pixel here. Face shading and
+        // completion lamps translate with the same captured collision centre.
+        if(((x>=56 && x<=72) && y>=side_left_y-10'd24 && y<=side_left_y+10'd24) ||
+           ((x>=632 && x<=648) && y>=side_right_y-10'd24 && y<=side_right_y+10'd24)) begin
             pixel=PINK;
-            if(y>=280 && y<=312 && ((x>=61 && x<=75) || (x>=637 && x<=651)))
+            if((x>=61 && x<=67 && y>=side_left_y-10'd16 && y<=side_left_y+10'd16) ||
+               (x>=637 && x<=643 && y>=side_right_y-10'd16 && y<=side_right_y+10'd16))
                 pixel=x<352 ? (hit_flash[3] ? WHITE : (target_progress[0] ? GOLD : 16'h700D)) :
                     (hit_flash[4] ? WHITE : (target_progress[1] ? GOLD : 16'h700D));
-            if(y==272 || x==56 || x==632) pixel=WHITE;
+            if((x<352 && (y==side_left_y-10'd24 || x==56)) ||
+               (x>=352 && (y==side_right_y-10'd24 || x==632))) pixel=WHITE;
         end
 
         // Energetic diamond slingshots: Manhattan radius three, matching physics.
@@ -755,6 +785,8 @@ module pinball_vga_renderer (
                 end
             end
         end
+        // Opaque modal panels cannot erase the mascot in the reserved margin.
+        if((state==MENU || state==PAUSE || state==OVER) && cat_ink) pixel=cat_pixel;
         // All visible button backgrounds share one bounded/chamfered path.
         // Hover uses the actual logical control contracts, never a hidden cursor.
         if(in_button) begin

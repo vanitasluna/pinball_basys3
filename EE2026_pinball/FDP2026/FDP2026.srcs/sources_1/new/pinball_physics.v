@@ -18,6 +18,7 @@ module pinball_physics (
     output wire [1:0] balls_visible,
     output reg [13:0] moving_bumper_y_fp,
     output reg [14:0] moving_bumper_x_fp,
+    output reg [13:0] side_left_y_fp, side_right_y_fp,
     output reg [2:0] left_angle, right_angle,
     output reg drained,
     output reg [13:0] hit_events,
@@ -38,6 +39,10 @@ module pinball_physics (
     reg work_ball, batch_both, load_second;
     reg batch_nudge, nudge_pending;
     reg moving_bumper_y_positive, moving_bumper_x_positive;
+    reg side_left_y_positive, side_right_y_positive;
+    reg gravity_phase;
+    reg signed [15:0] batch_gravity;
+    reg [1:0] batch_difficulty;
     reg signed [15:0] stage_position_x, stage_position_y;
     reg signed [15:0] stage_velocity_x, stage_velocity_y;
     reg stage_in_lane, stage_alive;
@@ -64,6 +69,14 @@ module pinball_physics (
     (* KEEP = "TRUE" *) reg signed [15:0] collision_moving_bumper_velocity_x;
     (* KEEP = "TRUE" *) reg collision_moving_bumper_y_positive;
     (* KEEP = "TRUE" *) reg collision_moving_bumper_x_positive;
+    (* KEEP = "TRUE" *) reg signed [15:0] collision_side_left_previous_y;
+    (* KEEP = "TRUE" *) reg signed [15:0] collision_side_left_next_y;
+    (* KEEP = "TRUE" *) reg signed [15:0] collision_side_left_velocity_y;
+    (* KEEP = "TRUE" *) reg signed [15:0] collision_side_right_previous_y;
+    (* KEEP = "TRUE" *) reg signed [15:0] collision_side_right_next_y;
+    (* KEEP = "TRUE" *) reg signed [15:0] collision_side_right_velocity_y;
+    (* KEEP = "TRUE" *) reg collision_side_left_y_positive;
+    (* KEEP = "TRUE" *) reg collision_side_right_y_positive;
     integer k;
 
     assign balls_visible = {ball2_alive,ball1_alive};
@@ -98,6 +111,18 @@ module pinball_physics (
     wire next_bumper_x_positive = (next_bumper_x >= 16'sd16896) ? 1'b0 :
         ((next_bumper_x <= 16'sd14848) ? 1'b1 : moving_bumper_x_positive);
 
+    // Side targets move on disjoint vertical tracks, away from the launch
+    // lane and lower guides. They share the same atomic world transaction as
+    // the bumpers and both balls; only one motion step is accepted per pair.
+    wire signed [15:0] next_side_left_y = $signed({2'b0,side_left_y_fp}) +
+        (side_left_y_positive ? 16'sd4 : -16'sd4);
+    wire signed [15:0] next_side_right_y = $signed({2'b0,side_right_y_fp}) +
+        (side_right_y_positive ? 16'sd4 : -16'sd4);
+    wire next_side_left_y_positive = (next_side_left_y >= 16'sd9472) ? 1'b0 :
+        ((next_side_left_y <= 16'sd7424) ? 1'b1 : side_left_y_positive);
+    wire next_side_right_y_positive = (next_side_right_y >= 16'sd9472) ? 1'b0 :
+        ((next_side_right_y <= 16'sd7424) ? 1'b1 : side_right_y_positive);
+
     wire [2:0] next_left_angle = left_pressed ?
         ((left_angle < 4) ? left_angle + 1'b1 : left_angle) :
         ((left_angle != 0) ? left_angle - 1'b1 : left_angle);
@@ -107,10 +132,17 @@ module pinball_physics (
     wire left_moving = left_pressed && (left_angle < 4);
     wire right_moving = right_pressed && (right_angle < 4);
 
-    wire signed [15:0] gravity = (difficulty == 2'd0) ? 16'sd1 :
-                               (difficulty == 2'd1) ? 16'sd2 : 16'sd3;
+    // Easy averages half a Q8 unit of gravity without widening every ball
+    // register: alternate 0/1 ONCE per world step. The second ball consumes
+    // the captured gravity, so neither pair ordering nor a survivor changes
+    // the profile. Normal/Hard use one/two Q8 units per world step.
+    wire signed [15:0] selected_gravity = (difficulty == 2'd0) ?
+        (gravity_phase ? 16'sd1 : 16'sd0) :
+        ((difficulty == 2'd1) ? 16'sd1 : 16'sd2);
+    wire signed [15:0] gravity = load_second ? batch_gravity : selected_gravity;
+    wire [1:0] operand_difficulty = load_second ? batch_difficulty : difficulty;
     wire signed [15:0] accelerated_vy = clamp_vertical(operand_vy + gravity,
-                                                     operand_y, operand_lane);
+        operand_y, operand_lane, operand_difficulty);
     wire signed [15:0] proposed_x = operand_x + clamp_horizontal(operand_vx);
     wire signed [15:0] proposed_y = operand_y + accelerated_vy;
     wire signed [15:0] corrected_x, corrected_y, corrected_vx, corrected_vy;
@@ -129,9 +161,15 @@ module pinball_physics (
         input signed [15:0] value;
         input signed [15:0] height;
         input lane;
+        input [1:0] level;
         reg signed [15:0] descent_limit;
         begin
-            descent_limit = (!lane && height >= 16'sd9728) ? 16'sd76 : 16'sd160;
+            if (!lane && height >= 16'sd9728)
+                descent_limit = (level==2'd0) ? 16'sd48 :
+                    ((level==2'd1) ? 16'sd60 : 16'sd72);
+            else
+                descent_limit = (level==2'd0) ? 16'sd112 :
+                    ((level==2'd1) ? 16'sd136 : 16'sd160);
             if (value > descent_limit) clamp_vertical = descent_limit;
             else if (value < -16'sd320) clamp_vertical = -16'sd320;
             else clamp_vertical = value;
@@ -191,10 +229,12 @@ module pinball_physics (
     assign far_from_object[2] =
         (magnitude(operand_x - 16'sd10752) > 16'd1536) ||
         (magnitude(operand_y - 16'sd8960) > 16'd1536);
-    assign far_from_object[3] = (operand_x > 16'sd2816) ||
-        (operand_y < 16'sd7168) || (operand_y > 16'sd9728);
-    assign far_from_object[4] = (operand_x < 16'sd18944) ||
-        (operand_y < 16'sd7168) || (operand_y > 16'sd9728);
+    assign far_from_object[3] =
+        (magnitude(operand_x-16'sd1536) > 16'd1280) ||
+        (magnitude(operand_y-$signed({2'b0,side_left_y_fp})) > 16'd1536);
+    assign far_from_object[4] =
+        (magnitude(operand_x-16'sd19968) > 16'd1280) ||
+        (magnitude(operand_y-$signed({2'b0,side_right_y_fp})) > 16'd1536);
 
     // Hysteresis and independent cooldowns ensure traversing a lit lane or
     // spinner scores once until the ball really leaves its sensor region.
@@ -231,6 +271,12 @@ module pinball_physics (
         .moving_bumper_previous_x(collision_moving_bumper_previous_x),
         .moving_bumper_next_x(collision_moving_bumper_next_x),
         .moving_bumper_velocity_x(collision_moving_bumper_velocity_x),
+        .side_left_previous_y(collision_side_left_previous_y),
+        .side_left_next_y(collision_side_left_next_y),
+        .side_left_velocity_y(collision_side_left_velocity_y),
+        .side_right_previous_y(collision_side_right_previous_y),
+        .side_right_next_y(collision_side_right_next_y),
+        .side_right_velocity_y(collision_side_right_velocity_y),
         .corrected_x(corrected_x), .corrected_y(corrected_y),
         .corrected_vx(corrected_vx), .corrected_vy(corrected_vy),
         .hit_events(contact_events)
@@ -247,7 +293,7 @@ module pinball_physics (
             (collision_previous_x<16'sd11008 ? 16'sd48 : -16'sd48) : 16'sd0)));
     wire signed [15:0] result_vy = result_drains ? 16'sd0 :
         (lane_exit ? -16'sd56 : clamp_vertical(corrected_vy -
-            (collision_nudge ? 16'sd80 : 16'sd0),corrected_y,collision_in_lane));
+            (collision_nudge ? 16'sd80 : 16'sd0),corrected_y,collision_in_lane,batch_difficulty));
     wire [13:0] result_hits = collision_in_lane ? 14'd0 :
         (contact_events & (work_ball ? hit_armed2 : hit_armed));
 
@@ -271,6 +317,17 @@ module pinball_physics (
             pending_hits<=0; pending_hit_wait<=0; pending_drain_wait<=0; hit_ball<=0;
             moving_bumper_y_fp<=14'd5632; moving_bumper_x_fp<=15'd14848;
             moving_bumper_y_positive<=1; moving_bumper_x_positive<=1;
+            side_left_y_fp<=14'd8448; side_right_y_fp<=14'd8448;
+            side_left_y_positive<=1; side_right_y_positive<=0;
+            gravity_phase<=0; batch_gravity<=0; batch_difficulty<=difficulty;
+            collision_side_left_previous_y<=16'sd8448;
+            collision_side_left_next_y<=16'sd8448;
+            collision_side_left_velocity_y<=0;
+            collision_side_right_previous_y<=16'sd8448;
+            collision_side_right_next_y<=16'sd8448;
+            collision_side_right_velocity_y<=0;
+            collision_side_left_y_positive<=1;
+            collision_side_right_y_positive<=0;
             collision_moving_bumper_previous_y<=16'sd5632;
             collision_moving_bumper_next_y<=16'sd5632;
             collision_moving_bumper_velocity_y<=0;
@@ -316,6 +373,8 @@ module pinball_physics (
             if(accept_batch) begin
                 work_ball<=!launched;
                 batch_both<=launched && launched2;
+                batch_gravity<=selected_gravity; batch_difficulty<=difficulty;
+                gravity_phase<=!gravity_phase;
                 batch_nudge<=nudge_pending || nudge;
                 nudge_pending<=0;
                 collision_busy<=1; collision_wait<=5'd16;
@@ -331,6 +390,14 @@ module pinball_physics (
                 collision_moving_bumper_velocity_x<=next_bumper_x-$signed({1'b0,moving_bumper_x_fp});
                 collision_moving_bumper_y_positive<=next_bumper_y_positive;
                 collision_moving_bumper_x_positive<=next_bumper_x_positive;
+                collision_side_left_previous_y<=$signed({2'b0,side_left_y_fp});
+                collision_side_left_next_y<=next_side_left_y;
+                collision_side_left_velocity_y<=next_side_left_y-$signed({2'b0,side_left_y_fp});
+                collision_side_right_previous_y<=$signed({2'b0,side_right_y_fp});
+                collision_side_right_next_y<=next_side_right_y;
+                collision_side_right_velocity_y<=next_side_right_y-$signed({2'b0,side_right_y_fp});
+                collision_side_left_y_positive<=next_side_left_y_positive;
+                collision_side_right_y_positive<=next_side_right_y_positive;
             end
             if(accept_batch || load_second) begin
                 collision_proposed_x<=proposed_x; collision_proposed_y<=proposed_y;
@@ -374,6 +441,10 @@ module pinball_physics (
                         moving_bumper_x_fp<=collision_moving_bumper_next_x[14:0];
                         moving_bumper_y_positive<=collision_moving_bumper_y_positive;
                         moving_bumper_x_positive<=collision_moving_bumper_x_positive;
+                        side_left_y_fp<=collision_side_left_next_y[13:0];
+                        side_right_y_fp<=collision_side_right_next_y[13:0];
+                        side_left_y_positive<=collision_side_left_y_positive;
+                        side_right_y_positive<=collision_side_right_y_positive;
                         if(work_ball) begin
                             position2_x<=corrected_x; position2_y<=corrected_y;
                             velocity2_x<=result_vx; velocity2_y<=result_vy;

@@ -1,0 +1,1 @@
+"tb_input" "glbl" -L "unisims_ver" -L "unisim" -L "unimacro_ver" -mt "off" -s "tb_input" --timescale "1ns/1ps" 

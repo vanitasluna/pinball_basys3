@@ -1,7 +1,7 @@
 Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
 ---------------------------------------------------------------------------------------------------------------------------------------------
 | Tool Version : Vivado v.2025.2 (win64) Build 6299465 Fri Nov 14 19:35:11 GMT 2025
-| Date         : Wed Oct 14 15:48:57 2026
+| Date         : Thu Oct 15 13:51:59 2026
 | Host         : Pegasus running 64-bit major release  (build 9200)
 | Command      : report_clock_interaction -file D:/NUS_Y2_S1/EE2026_prep/EE2026_pinball/FDP2026/build/clocks.rpt
 | Design       : My_Top_Module
@@ -18,10 +18,10 @@ Clock Interaction Table
                             WNS                            TNS Failing  TNS Total    WNS Path         Clock-Pair           Inter-Clock  
 From Clock    To Clock      Clock Edges  WNS(ns)  TNS(ns)    Endpoints    Endpoints  Requirement(ns)  Classification       Constraints  
 ------------  ------------  -----------  -------  -------  -----------  -----------  ---------------  -------------------  -----------  
-oled_clk      oled_clk      rise - fall    55.55     0.00            0          521            80.00  Clean                Timed        
-sys_clk_pin   oled_clk      rise - rise     2.69     0.00            0          691            10.00  Clean                Timed        
-sys_clk_pin   sys_clk_pin   rise - rise     0.51     0.00            0         6094            10.00  Clean                Timed        
-sys_clk_pin   vga_clk       rise - rise     0.38     0.00            0          558             5.00  Clean                Timed        
-vga_clk       vga_clk       rise - rise     0.72     0.00            0         1210            25.00  Clean                Timed        
+oled_clk      oled_clk      rise - fall    51.36     0.00            0          535            80.00  Clean                Timed        
+sys_clk_pin   oled_clk      rise - rise     3.49     0.00            0          719            10.00  Clean                Timed        
+sys_clk_pin   sys_clk_pin   rise - rise     0.10     0.00            0         6542            10.00  Clean                Timed        
+sys_clk_pin   vga_clk       rise - rise     0.54     0.00            0          576             5.00  Clean                Timed        
+vga_clk       vga_clk       rise - rise     0.38     0.00            0         1246            25.00  Clean                Timed        
 
 

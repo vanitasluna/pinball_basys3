@@ -1,0 +1,1 @@
+"tb_two_ball_game" "glbl" -L "unisims_ver" -L "unisim" -L "unimacro_ver" -mt "off" -s "tb_two_ball_game" --timescale "1ns/1ps" 

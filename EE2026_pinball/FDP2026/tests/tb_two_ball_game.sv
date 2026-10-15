@@ -24,6 +24,7 @@ module tb_two_ball_game;
     wire [5:0] ball_y,ball2_y;
     wire [14:0] ball_x_fp,ball2_x_fp;
     wire [13:0] ball_y_fp,ball2_y_fp;
+    wire [13:0] side_left_y_fp,side_right_y_fp;
     wire [1:0] balls_visible;
     wire [2:0] left_angle,right_angle;
     wire drained,in_lane,hit_ball;

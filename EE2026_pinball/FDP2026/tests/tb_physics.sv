@@ -4,7 +4,7 @@ module tb_physics;
     always #5 clk = !clk;
     reg reset = 1, tick = 0, active = 1, prepare = 0, launch = 0;
     reg [5:0] launch_power = 16;
-    reg [1:0] difficulty = 0;
+    reg [1:0] difficulty = 1;
     reg two_ball_mode = 0;
     reg left_pressed = 0, right_pressed = 0, nudge = 0;
     wire [6:0] ball_x, ball2_x;
@@ -15,6 +15,7 @@ module tb_physics;
     wire hit_ball;
     wire [13:0] moving_bumper_y_fp;
     wire [14:0] moving_bumper_x_fp;
+    wire [13:0] side_left_y_fp, side_right_y_fp;
     wire [2:0] left_angle, right_angle;
     wire drained, in_lane;
     wire [13:0] hit_events;
@@ -23,8 +24,8 @@ module tb_physics;
     reg saw_drain;
     reg signed [15:0] saved_x, saved_y, saved_vx, saved_vy;
     reg [2:0] saved_angle;
-    integer phase_y, phase_x, expected_y, expected_x;
-    reg [13:0] saved_bumper_y;
+    integer phase_y, phase_x, expected_y, expected_x, phase_side, expected_side;
+    reg [13:0] saved_bumper_y, saved_side_left, saved_side_right;
     reg [14:0] saved_bumper_x;
     reg saved_bumper_y_direction, saved_bumper_x_direction;
     pinball_physics dut (.*);
@@ -52,11 +53,14 @@ module tb_physics;
             check(dut.velocity_x <= 256 && dut.velocity_x >= -256 &&
                   dut.velocity_y <= 160 && dut.velocity_y >= -320, "velocity cap");
             if (!in_lane && dut.position_y>=38*256)
-                check(dut.velocity_y<=76,"lower playfield descent cap");
+                check(dut.velocity_y<=((difficulty==0)?48:((difficulty==1)?60:72)),"lower playfield profile descent cap");
             check(ball_x <= 95 && ball_y <= 63, "OLED coordinates bounded");
             check(moving_bumper_y_fp>=22*256 && moving_bumper_y_fp<=28*256 &&
                   moving_bumper_x_fp>=58*256 && moving_bumper_x_fp<=66*256,
                   "moving bumpers stay on their separated tracks");
+            check(side_left_y_fp>=29*256 && side_left_y_fp<=37*256 &&
+                side_right_y_fp>=29*256 && side_right_y_fp<=37*256,
+                "side rectangles stay on disjoint vertical tracks");
         end
     endtask
 
@@ -71,6 +75,9 @@ module tb_physics;
             check(moving_bumper_y_fp==22*256 && moving_bumper_x_fp==58*256 &&
                 dut.moving_bumper_y_positive && dut.moving_bumper_x_positive,
                 "prepare resets both moving centres and directions");
+            check(side_left_y_fp==33*256 && side_right_y_fp==33*256 &&
+                dut.side_left_y_positive && !dut.side_right_y_positive && !dut.gravity_phase,
+                "prepare resets side tracks and half-gravity phase");
         end
     endtask
 
@@ -128,7 +135,7 @@ module tb_physics;
             end
         end
 
-        difficulty = 0; launch_power = 16;
+        difficulty = 1; launch_power = 16;
         prepare_ball; shoot;
         repeat (10) step;
         saved_x = dut.position_x; saved_y = dut.position_y;
@@ -144,6 +151,46 @@ module tb_physics;
         left_pressed = 0;
         repeat (4) step;
         check(left_angle == 0, "flipper returns in four ticks");
+
+        // Minimum-to-maximum charge reaches the lane exit on all three
+        // profiles. A minimum shot must remain viable after reducing gravity.
+        for(d=0;d<3;d=d+1) for(p=0;p<64;p=p+1) begin
+            difficulty=d;launch_power=p;prepare_ball;shoot;n=0;
+            while(in_lane && n<200) begin step;n=n+1;end
+            check(!in_lane,"every launch power reaches table on each difficulty");
+        end
+
+        // Measure genuine accumulation in empty space: Easy 0/1 alternation,
+        // Normal +1, Hard +2. A pause may not consume the half-gravity phase.
+        for(d=0;d<3;d=d+1) begin
+            difficulty=d;free_table_ball(70,0,0);
+            @(negedge clk);dut.position_y=12*256;
+            for(p=1;p<=20;p=p+1) begin
+                step;
+                check(dut.velocity_y==((d==0)?p/2:((d==1)?p:2*p)),
+                    "gravity accumulates 0.5/1/2 Q8 per accepted world step");
+            end
+            active=0;saved_vy=dut.velocity_y;
+            repeat(3)step;
+            check(dut.velocity_y==saved_vy && !dut.gravity_phase,
+                "pause freezes gravity accumulation and its phase");
+            active=1;step;
+            check(dut.velocity_y==saved_vy+((d==0)?0:((d==1)?1:2)),
+                "resumed half-gravity phase continues without consuming paused ticks");
+            @(negedge clk);dut.position_x=70*256;dut.position_y=12*256;
+            dut.velocity_x=0;dut.velocity_y=300;step;
+            check(dut.velocity_y==((d==0)?112:((d==1)?136:160)),
+                "upper-playfield descent cap follows the selected difficulty");
+        end
+        // The result cap is part of the same transaction as its proposal.
+        // A menu-level input changing mid-window cannot alter this batch.
+        difficulty=1;free_table_ball(70,0,300);
+        @(negedge clk);dut.position_y=12*256;tick=1;
+        @(negedge clk);tick=0;difficulty=2;
+        repeat(16)@(negedge clk);
+        check(dut.velocity_y==136 && dut.batch_difficulty==1,
+            "outstanding batch preserves the accepted difficulty's result cap");
+        difficulty=1;launch_power=16;
 
         // Controlled geometric contact verifies score rearm, independently
         // of the repeatable launcher trajectory used above.
@@ -170,7 +217,7 @@ module tb_physics;
         step;
         check(hit_events == 5'b00001, "new approach to rearmed bumper scores");
 
-        difficulty = 0; left_pressed = 0;
+        difficulty = 1; left_pressed = 0;
         prepare_ball; shoot;
         saved_x = dut.position_x; saved_y = dut.position_y;
         @(negedge clk); tick = 1;
@@ -213,7 +260,7 @@ module tb_physics;
         check(ball_x==95 && ball_y==63 && ball_x_fp==24320 && ball_y_fp==16128,
               "native and OLED coordinates saturate without wrapping");
 
-        difficulty=0; launch_power=16; left_pressed=0; right_pressed=0;
+        difficulty=1; launch_power=16; left_pressed=0; right_pressed=0;
         prepare_ball; shoot;
         pulse_nudge;
         check(!dut.nudge_pending, "nudge cannot queue in shooter lane");
@@ -305,7 +352,7 @@ module tb_physics;
         // Every newly added object has its own one-shot gate. Staying in a
         // sensor longer than its cooldown cannot repeatedly award points;
         // leaving, waiting, and approaching again restores exactly one hit.
-        difficulty=0; left_pressed=0; right_pressed=0;
+        difficulty=1; left_pressed=0; right_pressed=0;
         for(e=5;e<14;e=e+1) begin
             case(e)
                 5: begin seed_x=25*256; seed_y=14*256; seed_vx=0; seed_vy=0; end
@@ -346,7 +393,7 @@ module tb_physics;
         end
 
         // On the open central approach, a ball entering y=38 at any speed
-        // needs at least 48 physics frames (200 ms) to reach y=53. This checks
+        // needs 80/64/54 physics ticks (333/267/225 ms) to reach y=53. This checks
         // the actual integrated path rather than only the clamp constant.
         for(d=0;d<3;d=d+1) begin
             difficulty=d;
@@ -356,14 +403,14 @@ module tb_physics;
             while(dut.position_y<53*256 && descent_ticks<100) begin
                 step; descent_ticks=descent_ticks+1;
             end
-            check(dut.position_y>=53*256 && descent_ticks>=48 && descent_ticks<=55,
-                "maximum descent grants at least 200 ms reaction approach");
+            check(dut.position_y>=53*256 && descent_ticks==((d==0)?80:((d==1)?64:54)),
+                "difficulty profiles grant 333/267/225 ms reaction approaches");
         end
 
         // Pressing a flipper underneath a descending ball reaches it within
         // the same four-tick stroke. Holding an already raised flipper has a
         // distinctly weaker return, so deliberate timing remains rewarding.
-        difficulty=0;
+        difficulty=1;
         free_table_ball(34,0,76);
         @(negedge clk); dut.position_y=52*256+205; left_pressed=1;
         response_ticks=0;
@@ -393,7 +440,7 @@ module tb_physics;
         // three horizontal cycles at exactly four Q8 units per accepted tick.
         // Keep a test ball in a clear area so motion checks do not depend on
         // contacts or a drain interrupting a cycle.
-        difficulty=0; active=1; prepare_ball; shoot;
+        difficulty=1; active=1; prepare_ball; shoot;
         for(n=1;n<=3072;n=n+1) begin
             @(negedge clk);
             dut.ball1_in_lane=0; dut.position_x=70*256; dut.position_y=12*256;
@@ -401,6 +448,14 @@ module tb_physics;
             saved_bumper_y=moving_bumper_y_fp; saved_bumper_x=moving_bumper_x_fp;
             step;
             phase_y=n%768; phase_x=n%1024;
+            phase_side=(n+256)%1024;
+            expected_side=(phase_side<=512) ? 29*256+4*phase_side :
+                37*256-4*(phase_side-512);
+            check(side_left_y_fp==expected_side && side_right_y_fp==66*256-expected_side,
+                "side targets traverse opposed full triangle cycles once per world step");
+            check(dut.side_left_y_positive==(phase_side<512) &&
+                dut.side_right_y_positive==(phase_side>=512),
+                "side directions reverse only at each inclusive endpoint");
             expected_y=(phase_y<=384) ? 22*256+4*phase_y : 28*256-4*(phase_y-384);
             expected_x=(phase_x<=512) ? 58*256+4*phase_x : 66*256-4*(phase_x-512);
             check(moving_bumper_y_fp==expected_y && moving_bumper_x_fp==expected_x,
@@ -420,12 +475,17 @@ module tb_physics;
         repeat(20) step;
         check(moving_bumper_y_fp==22*256 && moving_bumper_x_fp==58*256,
             "READY ticks cannot move unlaunched bumpers");
+        check(side_left_y_fp==33*256 && side_right_y_fp==33*256,
+            "READY ticks cannot move the side rectangles");
         shoot; step;
         saved_bumper_y=moving_bumper_y_fp; saved_bumper_x=moving_bumper_x_fp;
         saved_bumper_y_direction=dut.moving_bumper_y_positive;
         saved_bumper_x_direction=dut.moving_bumper_x_positive;
+        saved_side_left=side_left_y_fp;saved_side_right=side_right_y_fp;
         active=0;
         repeat(20) step;
+        check(side_left_y_fp==saved_side_left && side_right_y_fp==saved_side_right,
+            "pause freezes both side rectangles");
         check(moving_bumper_y_fp==saved_bumper_y && moving_bumper_x_fp==saved_bumper_x &&
             dut.moving_bumper_y_positive==saved_bumper_y_direction &&
             dut.moving_bumper_x_positive==saved_bumper_x_direction,
@@ -447,6 +507,11 @@ module tb_physics;
             dut.collision_moving_bumper_next_x==58*256+4 &&
             dut.collision_moving_bumper_velocity_x==4,
             "transaction captures old/new centres and their actual displacement");
+        check(dut.collision_side_left_previous_y==33*256 &&
+            dut.collision_side_left_next_y==33*256+4 && dut.collision_side_left_velocity_y==4 &&
+            dut.collision_side_right_previous_y==33*256 &&
+            dut.collision_side_right_next_y==33*256-4 && dut.collision_side_right_velocity_y==-4,
+            "side snapshots isolate both old/new centres and opposite velocities");
         repeat(15) begin
             @(negedge clk);
             check(dut.collision_busy && dut.position_x==saved_x && dut.position_y==saved_y &&
@@ -462,6 +527,8 @@ module tb_physics;
         check(!dut.collision_busy && dut.position_y==saved_y-303 &&
             moving_bumper_y_fp==22*256+4 && moving_bumper_x_fp==58*256+4,
             "accepted ball and moving centres commit atomically while paused");
+        check(side_left_y_fp==33*256+4 && side_right_y_fp==33*256-4,
+            "side targets commit with accepted ball even when pause arrives mid-window");
         repeat(8) step;
         check(moving_bumper_y_fp==22*256+4 && moving_bumper_x_fp==58*256+4,
             "paused ticks cannot queue another moving transaction");
@@ -476,6 +543,8 @@ module tb_physics;
             moving_bumper_x_fp==58*256 && dut.moving_bumper_y_positive &&
             dut.moving_bumper_x_positive,
             "prepare cancels moving transaction without a stale centre update");
+        check(side_left_y_fp==33*256 && side_right_y_fp==33*256 && !dut.gravity_phase,
+            "prepare cancels side updates and resets gravity phase");
         shoot; step;
         @(negedge clk); tick=1;
         @(negedge clk); tick=0;
@@ -486,6 +555,8 @@ module tb_physics;
             moving_bumper_x_fp==58*256 && dut.moving_bumper_y_positive &&
             dut.moving_bumper_x_positive,
             "reset cancels motion and restores initial centres and directions");
+        check(side_left_y_fp==33*256 && side_right_y_fp==33*256 && !dut.gravity_phase,
+            "reset cancels side updates and resets gravity phase");
 
         // Slow moving surfaces must interact with a resting ball using
         // relative velocity, and score no more than once while touching.
@@ -494,7 +565,7 @@ module tb_physics;
         dut.ball1_in_lane=0; dut.position_x=26*256; dut.position_y=26*256+2;
         dut.velocity_x=0; dut.velocity_y=0;
         step;
-        check(hit_events==14'h0001 && dut.velocity_y==160 &&
+        check(hit_events==14'h0001 && dut.velocity_y==136 &&
             dut.position_y==moving_bumper_y_fp+1152 && !dut.hit_armed[0],
             "downward surface pushes resting ball, bounds speed and scores once");
         for(repeat_contact=0;repeat_contact<22;repeat_contact=repeat_contact+1) begin
@@ -544,6 +615,36 @@ module tb_physics;
         repeat(8) step;
         check(moving_bumper_y_fp==saved_bumper_y && moving_bumper_x_fp==saved_bumper_x,
             "game-over/drained ball cannot continue moving tracks");
+
+        // Each moving side rectangle keeps independent contact hysteresis.
+        // Holding contact past the cooldown cannot repeat; exit then reentry
+        // creates exactly one new award at the CURRENT moving y coordinate.
+        difficulty=1;
+        for(e=3;e<=4;e=e+1) begin
+            prepare_ball;shoot;
+            for(repeat_contact=0;repeat_contact<23;repeat_contact=repeat_contact+1) begin
+                @(negedge clk);dut.ball1_in_lane=0;
+                dut.position_x=((e==3)?8:76)*256;
+                dut.position_y=(e==3)?side_left_y_fp:side_right_y_fp;
+                dut.velocity_x=(e==3)?-200:200;dut.velocity_y=0;step;
+                check(hit_events==((repeat_contact==0)?(14'b1<<e):14'd0) && !dut.hit_armed[e],
+                    "moving side contact awards once despite long contact and expired cooldown");
+            end
+            @(negedge clk);dut.position_x=43*256;dut.position_y=44*256;
+            dut.velocity_x=0;dut.velocity_y=0;repeat(20)step;
+            check(dut.hit_armed[e],"moving side target rearms after ball leaves its live envelope");
+            @(negedge clk);dut.position_x=((e==3)?8:76)*256;
+            dut.position_y=(e==3)?side_left_y_fp:side_right_y_fp;
+            dut.velocity_x=(e==3)?-200:200;dut.velocity_y=0;step;
+            check(hit_events==(14'b1<<e),"new side approach scores exactly its original event bit");
+            @(negedge clk);dut.hit_armed[e]=0;dut.cooldown[e]=0;
+            if(e==3)begin dut.side_left_y_fp=37*256;dut.side_left_y_positive=0;end
+            else begin dut.side_right_y_fp=37*256;dut.side_right_y_positive=0;end
+            dut.position_x=((e==3)?6:78)*256;dut.position_y=30*256;
+            dut.velocity_x=0;dut.velocity_y=0;step;
+            check(dut.hit_armed[e] && !hit_events[e],
+                "side hysteresis follows moved centre rather than obsolete fixed anchor");
+        end
 
         $display("PASS tb_physics (%0d checks)", checks);
         $finish;

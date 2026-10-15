@@ -1,0 +1,1 @@
+"tb_vga_clock" "glbl" -L "unisims_ver" -L "unisim" -L "unimacro_ver" -mt "off" -s "tb_vga_clock" --timescale "1ns/1ps" 
