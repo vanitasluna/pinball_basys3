@@ -1,1 +1,0 @@
-"tb_vga_renderer" -s "tb_vga_flow_final" --timescale "1ns/1ps" -mt "off" 

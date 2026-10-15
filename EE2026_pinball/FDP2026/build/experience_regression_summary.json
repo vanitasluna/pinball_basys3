@@ -1,9 +1,0 @@
-{
-  "tb_physics": "PASS tb_physics (95262 checks)",
-  "tb_multiball": "PASS tb_multiball (36376 checks)",
-  "tb_two_ball_game": "PASS tb_two_ball_game: 74 checks; selected pair launch, individual awards, fractional carry, pair lives/save, final-batch scoring, pause, menu/reset cancellation",
-  "tb_collision": "PASS tb_collision (106 checks)",
-  "tb_renderer": "PASS tb_renderer: persistent six-mood mascot, moving side banks, persistent HUD, independent two-ball visibility/menu/queued sprites, moving bumpers and sixteen complete frames (98304 pixels)",
-  "tb_vga_renderer": "PASS tb_vga_renderer: persistent six-mood cat, moving side banks, trail/HUD/ball priority, hover/countdown and sixteen complete frames (7680000 pixels)",
-  "tb_top": "PASS tb_top: quarter-speed complete mouse packets, subpixel motion, endpoint clamps, aligned clicks, bounded start/resume/restart widgets, menu mode choice, ignored SW1, held-input rejection, simultaneous U/C capture, pause, survivor trail, paired launch, atomic frames, reset, protected drivers and JC SPI"
-}

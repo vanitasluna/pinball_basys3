@@ -1,1 +1,0 @@
-"tb_renderer" -s "tb_renderer_blue" --timescale "1ns/1ps" -mt "off" 

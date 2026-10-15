@@ -1,1 +1,0 @@
-"tb_geometry_oracle" -mt "off" -s "tb_geometry_oracle" --timescale "1ns/1ps" 

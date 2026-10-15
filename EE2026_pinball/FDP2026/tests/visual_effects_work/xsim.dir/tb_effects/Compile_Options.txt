@@ -1,1 +1,0 @@
-"tb_effects" -mt "off" -s "tb_effects" --timescale "1ns/1ps" 

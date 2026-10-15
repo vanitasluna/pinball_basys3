@@ -1,1 +1,0 @@
-"tb_top" -L "unisims_ver" -L "unisim" -s "top_sim" --timescale "1ns/1ps" 

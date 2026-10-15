@@ -1,1 +1,0 @@
-"tb_vga_renderer" "glbl" -L "unisims_ver" -L "unisim" -L "unimacro_ver" -mt "off" -s "tb_vga_renderer" --timescale "1ns/1ps" 

@@ -1,1 +1,0 @@
-"tb_multiball" -mt "off" -s "tb_multiball" --timescale "1ns/1ps" 

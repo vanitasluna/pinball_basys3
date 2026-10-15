@@ -1,1 +1,0 @@
-"tb_vga" -L "unisims_ver" -L "unisim" -s "tb_vga" --timescale "1ns/1ps" 

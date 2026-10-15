@@ -1,1 +1,0 @@
-"tb_effects" "glbl" -L "unisims_ver" -L "unisim" -s "tb_effects" --timescale "1ns/1ps" 
