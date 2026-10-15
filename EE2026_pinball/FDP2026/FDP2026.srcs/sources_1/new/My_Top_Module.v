@@ -3,10 +3,10 @@
 
 //////////////////////////////////////////////////////////////////////////////////
 //  FILL IN THE FOLLOWING INFORMATION:
-//  STUDENT A NAME: 
-//  STUDENT B NAME:
-//  STUDENT C NAME: 
-//  STUDENT D NAME:  
+//  STUDENT A NAME: Truong Phi Hung
+//  STUDENT B NAME: Suraj
+//  STUDENT C NAME: Duong Nghiep Hoang
+//  STUDENT D NAME: Nguyen Duc Khoa
 //////////////////////////////////////////////////////////////////////////////////
 
 // OLED: plug Pmod OLEDrgb into JC. Mouse: Basys 3 USB HID host port.
