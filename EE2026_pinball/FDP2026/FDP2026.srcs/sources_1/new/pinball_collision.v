@@ -5,6 +5,7 @@
 // The ball has radius one. Eight-direction bumper normals avoid dividers,
 // square roots and trigonometric hardware while giving repeatable rebounds.
 module pinball_collision (
+    input wire [5:0] layout_id,
     input wire signed [15:0] proposed_x,
     input wire signed [15:0] proposed_y,
     input wire signed [15:0] velocity_x,
@@ -36,6 +37,39 @@ module pinball_collision (
     output reg signed [15:0] corrected_vy,
     output reg [13:0] hit_events
 );
+
+    wire [6:0] map_left_x,map_center_x,map_bank_x0,map_bank_x1,map_bank_x2,map_spinner_x;
+    wire [5:0] map_right_y,map_center_y,map_bank_y,map_bank_y1,map_bank_y2,map_spinner_y,map_rollover_y;
+    wire [6:0] map_sling_left_x,map_sling_right_x,map_side_left_x,map_side_right_x;
+    wire [5:0] map_sling_left_y,map_sling_right_y;
+    pinball_layout geometry(.layout_id(layout_id),
+        .bumper_left_x(map_left_x),.bumper_right_y(map_right_y),
+        .bumper_center_x(map_center_x),.bumper_center_y(map_center_y),
+        .bank_x0(map_bank_x0),.bank_y(map_bank_y),
+        .bank_x1(map_bank_x1),.bank_x2(map_bank_x2),.bank_y1(map_bank_y1),.bank_y2(map_bank_y2),
+        .sling_left_x(map_sling_left_x),.sling_left_y(map_sling_left_y),
+        .sling_right_x(map_sling_right_x),.sling_right_y(map_sling_right_y),
+        .side_left_x(map_side_left_x),.side_right_x(map_side_right_x),
+        .spinner_x(map_spinner_x),.spinner_y(map_spinner_y),.rollover_y(map_rollover_y));
+    wire signed [15:0] map_left_x_q8={1'b0,map_left_x,8'b0};
+    wire signed [15:0] map_right_y_q8={2'b0,map_right_y,8'b0};
+    wire signed [15:0] map_center_x_q8={1'b0,map_center_x,8'b0};
+    wire signed [15:0] map_center_y_q8={2'b0,map_center_y,8'b0};
+    wire signed [15:0] map_bank_x_q8={1'b0,map_bank_x0,8'b0};
+    wire signed [15:0] map_bank_y_q8={2'b0,map_bank_y,8'b0};
+    wire signed [15:0] map_bank_x1_q8={1'b0,map_bank_x1,8'b0};
+    wire signed [15:0] map_bank_x2_q8={1'b0,map_bank_x2,8'b0};
+    wire signed [15:0] map_bank_y1_q8={2'b0,map_bank_y1,8'b0};
+    wire signed [15:0] map_bank_y2_q8={2'b0,map_bank_y2,8'b0};
+    wire signed [15:0] map_spinner_x_q8={1'b0,map_spinner_x,8'b0};
+    wire signed [15:0] map_spinner_y_q8={2'b0,map_spinner_y,8'b0};
+    wire signed [15:0] map_rollover_y_q8={2'b0,map_rollover_y,8'b0};
+    wire signed [15:0] map_side_left_x_q8={1'b0,map_side_left_x,8'b0};
+    wire signed [15:0] map_side_right_x_q8={1'b0,map_side_right_x,8'b0};
+    wire signed [15:0] map_sling_left_x_q8={1'b0,map_sling_left_x,8'b0};
+    wire signed [15:0] map_sling_right_x_q8={1'b0,map_sling_right_x,8'b0};
+    wire signed [15:0] map_sling_left_y_q8={2'b0,map_sling_left_y,8'b0};
+    wire signed [15:0] map_sling_right_y_q8={2'b0,map_sling_right_y,8'b0};
 
     reg signed [15:0] centre_x, centre_y;
     reg signed [15:0] previous_centre_x, previous_centre_y;
@@ -218,13 +252,16 @@ module pinball_collision (
         if (!in_lane) begin
             // Rollovers and spinner are sensors: the ball passes through.
             // Physics separately rearms each sensor only after exit.
-            if (proposed_y >= 16'sd3072 && proposed_y <= 16'sd4096) begin
+            if (proposed_y >= map_rollover_y_q8-16'sd512 &&
+                proposed_y <= map_rollover_y_q8+16'sd512) begin
                 if (proposed_x >= 16'sd5632 && proposed_x <= 16'sd7168) hit_events[5] = 1'b1;
                 if (proposed_x >= 16'sd9984 && proposed_x <= 16'sd11520) hit_events[6] = 1'b1;
                 if (proposed_x >= 16'sd14336 && proposed_x <= 16'sd15872) hit_events[7] = 1'b1;
             end
-            if (proposed_x >= 16'sd9728 && proposed_x <= 16'sd11776 &&
-                proposed_y >= 16'sd6656 && proposed_y <= 16'sd7168)
+            if (proposed_x >= map_spinner_x_q8-16'sd1024 &&
+                proposed_x <= map_spinner_x_q8+16'sd1024 &&
+                proposed_y >= map_spinner_y_q8-16'sd256 &&
+                proposed_y <= map_spinner_y_q8+16'sd256)
                 hit_events[8] = 1'b1;
 
             // Radius-four collision octagons enclose the drawn radius-three
@@ -232,18 +269,18 @@ module pinball_collision (
             for (i = 0; i < 3; i = i + 1) begin
                 case (i)
                     0: begin
-                        centre_x=16'sd6656; centre_y=moving_bumper_next_y;
-                        previous_centre_x=16'sd6656; previous_centre_y=moving_bumper_previous_y;
+                        centre_x=map_left_x_q8; centre_y=moving_bumper_next_y;
+                        previous_centre_x=map_left_x_q8; previous_centre_y=moving_bumper_previous_y;
                         centre_vx=0; centre_vy=moving_bumper_velocity_y;
                     end
                     1: begin
-                        centre_x=moving_bumper_next_x; centre_y=16'sd5632;
-                        previous_centre_x=moving_bumper_previous_x; previous_centre_y=16'sd5632;
+                        centre_x=moving_bumper_next_x; centre_y=map_right_y_q8;
+                        previous_centre_x=moving_bumper_previous_x; previous_centre_y=map_right_y_q8;
                         centre_vx=moving_bumper_velocity_x; centre_vy=0;
                     end
                     default: begin
-                        centre_x=16'sd10752; centre_y=16'sd8960;
-                        previous_centre_x=16'sd10752; previous_centre_y=16'sd8960;
+                        centre_x=map_center_x_q8; centre_y=map_center_y_q8;
+                        previous_centre_x=map_center_x_q8; previous_centre_y=map_center_y_q8;
                         centre_vx=0; centre_vy=0;
                     end
                 endcase
@@ -319,15 +356,15 @@ module pinball_collision (
             // sweeps and preserves the bank's original contact priority.
             for (i = 0; i < 5; i = i + 1) begin
                 case (i)
-                    0: begin centre_x=16'sd8704; centre_y=16'sd5120;
-                        previous_centre_y=16'sd5120; rectangle_half_y=16'sd512; end
-                    1: begin centre_x=16'sd10752; centre_y=16'sd5120;
-                        previous_centre_y=16'sd5120; rectangle_half_y=16'sd512; end
-                    2: begin centre_x=16'sd12800; centre_y=16'sd5120;
-                        previous_centre_y=16'sd5120; rectangle_half_y=16'sd512; end
-                    3: begin centre_x=16'sd1536; centre_y=side_left_next_y;
+                    0: begin centre_x=map_bank_x_q8; centre_y=map_bank_y_q8;
+                        previous_centre_y=map_bank_y_q8; rectangle_half_y=16'sd512; end
+                    1: begin centre_x=map_bank_x1_q8; centre_y=map_bank_y1_q8;
+                        previous_centre_y=map_bank_y1_q8; rectangle_half_y=16'sd512; end
+                    2: begin centre_x=map_bank_x2_q8; centre_y=map_bank_y2_q8;
+                        previous_centre_y=map_bank_y2_q8; rectangle_half_y=16'sd512; end
+                    3: begin centre_x=map_side_left_x_q8; centre_y=side_left_next_y;
                         previous_centre_y=side_left_previous_y; rectangle_half_y=16'sd1024; end
-                    default: begin centre_x=16'sd19968; centre_y=side_right_next_y;
+                    default: begin centre_x=map_side_right_x_q8; centre_y=side_right_next_y;
                         previous_centre_y=side_right_previous_y; rectangle_half_y=16'sd1024; end
                 endcase
                 dx=proposed_x-centre_x; dy=proposed_y-centre_y;
@@ -342,15 +379,15 @@ module pinball_collision (
                 end
             end
             case (rectangle_index)
-                0: begin centre_x=16'sd8704; centre_y=16'sd5120;
-                    previous_centre_y=16'sd5120; centre_vy=0; end
-                1: begin centre_x=16'sd10752; centre_y=16'sd5120;
-                    previous_centre_y=16'sd5120; centre_vy=0; end
-                2: begin centre_x=16'sd12800; centre_y=16'sd5120;
-                    previous_centre_y=16'sd5120; centre_vy=0; end
-                3: begin centre_x=16'sd1536; centre_y=side_left_next_y;
+                0: begin centre_x=map_bank_x_q8; centre_y=map_bank_y_q8;
+                    previous_centre_y=map_bank_y_q8; centre_vy=0; end
+                1: begin centre_x=map_bank_x1_q8; centre_y=map_bank_y1_q8;
+                    previous_centre_y=map_bank_y1_q8; centre_vy=0; end
+                2: begin centre_x=map_bank_x2_q8; centre_y=map_bank_y2_q8;
+                    previous_centre_y=map_bank_y2_q8; centre_vy=0; end
+                3: begin centre_x=map_side_left_x_q8; centre_y=side_left_next_y;
                     previous_centre_y=side_left_previous_y; centre_vy=side_left_velocity_y; end
-                default: begin centre_x=16'sd19968; centre_y=side_right_next_y;
+                default: begin centre_x=map_side_right_x_q8; centre_y=side_right_next_y;
                     previous_centre_y=side_right_previous_y; centre_vy=side_right_velocity_y; end
             endcase
             rectangle_half_y=(rectangle_index>=3) ? 16'sd1024 : 16'sd512;
@@ -405,13 +442,14 @@ module pinball_collision (
                 end
             end
 
-            // Energized slings are diamonds at (17/69,41). Their Manhattan
+            // Energized diamonds use the captured layout's validated slots.
+            // Their Manhattan
             // radius three plus ball clearance gives a radius-four envelope.
             // An inward approach receives a stronger radial return; top-face
             // hits also send the ball inward towards the playable middle.
             for (i = 0; i < 2; i = i + 1) begin
-                centre_x = (i == 0) ? 16'sd4352 : 16'sd17664;
-                centre_y = 16'sd10496;
+                centre_x = (i == 0) ? map_sling_left_x_q8 : map_sling_right_x_q8;
+                centre_y = (i == 0) ? map_sling_left_y_q8 : map_sling_right_y_q8;
                 dx = proposed_x-centre_x; dy = proposed_y-centre_y;
                 ax = magnitude(dx); ay = magnitude(dy);
                 previous_dx=previous_x-centre_x;previous_dy=previous_y-centre_y;

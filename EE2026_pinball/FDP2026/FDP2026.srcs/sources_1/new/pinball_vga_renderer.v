@@ -8,6 +8,12 @@
 module pinball_vga_renderer (
     input wire [9:0] x, y,
     input wire [2:0] state,
+    input wire [5:0] layout_id,
+    input wire [6:0] black_hole_x, white_hole_x,
+    input wire [5:0] black_hole_y, white_hole_y,
+    input wire [4:0] portal_flash,
+    input wire [7:0] portal_anim,
+    input wire portals_visible,
     input wire [14:0] ball_x_fp,
     input wire [13:0] ball_y_fp,
     input wire [14:0] ball2_x_fp,
@@ -160,35 +166,9 @@ module pinball_vga_renderer (
                 45: line={"LAST BALL",280'd0};
                 46: line={"1 BALL",304'd0};
                 47: line={"2 BALLS",296'd0};
-                48: line={"YATTA!",304'd0};
-                49: line={"NANI!",312'd0};
-                50: line={"PHEW!",312'd0};
                 default: line=352'd0;
             endcase
             message_char = index<6'd44 ? line[351-(index*8) -: 8] : 8'd32;
-        end
-    endfunction
-
-    // Original circuit-cat silhouette: cyan outline, violet inset. A tiny
-    // constant row selector draws the cameo without geometry multipliers.
-    function [47:0] circuit_cat_row;
-        input [4:0] row;
-        begin
-            case(row)
-                0:circuit_cat_row={24'h100008,24'h000000};
-                1:circuit_cat_row={24'h38001C,24'h000000};
-                2:circuit_cat_row={24'h3C003C,24'h180018};
-                3:circuit_cat_row={24'h7E007E,24'h3C003C};
-                4:circuit_cat_row={24'h7F00FE,24'h3E007C};
-                5:circuit_cat_row={24'h7F81FE,24'h3F00FC};
-                6,7,8,9,10,11,12,13,14,15,16,17,18:
-                    circuit_cat_row={24'h7FFFFE,24'h3FFFFC};
-                19,20:circuit_cat_row={24'h3FFFFC,24'h1FFFF8};
-                21:circuit_cat_row={24'h1FFFF8,24'h0FFFF0};
-                22:circuit_cat_row={24'h0FFFF0,24'h03FFC0};
-                23:circuit_cat_row={24'h03FFC0,24'h000000};
-                default:circuit_cat_row=48'd0;
-            endcase
         end
     endfunction
 
@@ -240,6 +220,43 @@ module pinball_vga_renderer (
                            (x<ball2_cx && y<ball2_cy) ? WHITE :
                            (x>ball2_cx && y>ball2_cy) ? ORANGE : GOLD;
 
+    // Decode the frame's captured map in logical pixels, then scale by eight.
+    // The pixel clock sees a stable layout throughout the whole raster.
+    wire [6:0] bumper_left_x,bumper_center_x,bank_x0,bank_x1,bank_x2,spinner_x;
+    wire [6:0] bumper_x_min,bumper_x_max;
+    wire [5:0] bumper_right_y,bumper_center_y,bank_y,bank_y1,bank_y2,spinner_y,rollover_y;
+    wire [5:0] bumper_y_min,bumper_y_max;
+    wire [6:0] sling_left_x,sling_right_x,side_left_x,side_right_x;
+    wire [5:0] sling_left_y,sling_right_y;
+    pinball_layout layout(.layout_id(layout_id),
+        .bumper_left_x(bumper_left_x),.bumper_right_y(bumper_right_y),
+        .bumper_center_x(bumper_center_x),.bumper_center_y(bumper_center_y),
+        .bank_x0(bank_x0),.bank_x1(bank_x1),.bank_x2(bank_x2),
+        .bank_y(bank_y),.bank_y1(bank_y1),.bank_y2(bank_y2),
+        .spinner_x(spinner_x),.spinner_y(spinner_y),.rollover_y(rollover_y),
+        .bumper_x_min(bumper_x_min),.bumper_x_max(bumper_x_max),
+        .bumper_y_min(bumper_y_min),.bumper_y_max(bumper_y_max),
+        .sling_left_x(sling_left_x),.sling_right_x(sling_right_x),
+        .sling_left_y(sling_left_y),.sling_right_y(sling_right_y),
+        .side_left_x(side_left_x),.side_right_x(side_right_x));
+    wire [9:0] left_bumper_cx=10'd16+{bumper_left_x,3'b000};
+    wire [9:0] right_bumper_cy=10'd32+{1'b0,bumper_right_y,3'b000};
+    wire [9:0] center_bumper_cx=10'd16+{bumper_center_x,3'b000};
+    wire [9:0] center_bumper_cy=10'd32+{1'b0,bumper_center_y,3'b000};
+    wire [9:0] bank_start_x=10'd16+{bank_x0,3'b000};
+    wire [9:0] bank_cy=10'd32+{1'b0,bank_y,3'b000};
+    wire [9:0] bank1_cx=10'd16+{bank_x1,3'b000};
+    wire [9:0] bank1_cy=10'd32+{1'b0,bank_y1,3'b000};
+    wire [9:0] bank2_cx=10'd16+{bank_x2,3'b000};
+    wire [9:0] bank2_cy=10'd32+{1'b0,bank_y2,3'b000};
+    wire [9:0] track_x_min=10'd16+{bumper_x_min,3'b000};
+    wire [9:0] track_x_max=10'd16+{bumper_x_max,3'b000};
+    wire [9:0] track_y_min=10'd32+{1'b0,bumper_y_min,3'b000};
+    wire [9:0] track_y_max=10'd32+{1'b0,bumper_y_max,3'b000};
+    wire [9:0] spinner_cx=10'd16+{spinner_x,3'b000};
+    wire [9:0] spinner_cy=10'd32+{1'b0,spinner_y,3'b000};
+    wire [9:0] rollover_cy=10'd32+{1'b0,rollover_y,3'b000};
+
     // Moving objects retain one-eighth logical-pixel resolution on VGA.
     wire [9:0] moving_bumper_cy=10'd32+{1'b0,moving_bumper_y_fp[13:5]};
     wire [9:0] moving_bumper_cx=10'd16+moving_bumper_x_fp[14:5];
@@ -251,10 +268,10 @@ module pinball_vga_renderer (
     reg [1:0] bumper_id;
     always @* begin
         if(x<10'd288) begin
-            bumper_cx=10'd224; bumper_cy=moving_bumper_cy; bumper_id=2'd0;
+            bumper_cx=left_bumper_cx; bumper_cy=moving_bumper_cy; bumper_id=2'd0;
         end else if(x>=10'd432) begin
-            bumper_cx=moving_bumper_cx; bumper_cy=10'd208; bumper_id=2'd1;
-        end else begin bumper_cx=10'd352; bumper_cy=10'd312; bumper_id=2'd2; end
+            bumper_cx=moving_bumper_cx; bumper_cy=right_bumper_cy; bumper_id=2'd1;
+        end else begin bumper_cx=center_bumper_cx; bumper_cy=center_bumper_cy; bumper_id=2'd2; end
     end
     wire [9:0] bumper_dx=x>=bumper_cx ? x-bumper_cx : bumper_cx-x;
     wire [9:0] bumper_dy=y>=bumper_cy ? y-bumper_cy : bumper_cy-y;
@@ -267,7 +284,7 @@ module pinball_vga_renderer (
     wire [11:0] ring_outer=ring_r*ring_r;
     wire [11:0] ring_inner=(ring_r-6'd2)*(ring_r-6'd2);
     wire bumper_hit=hit_flash[bumper_id];
-    wire [9:0] bumper_lamp_y=bumper_id==2'd2 ? 10'd272 : bumper_cy-10'd32;
+    wire [9:0] bumper_lamp_y=bumper_cy-(bumper_id==2'd2 ? 10'd40 : 10'd32);
 
     reg signed [4:0] left_slope,right_slope;
     always @* begin
@@ -291,13 +308,16 @@ module pinball_vga_renderer (
     wire signed [15:0] guide_l=guide_y*6'sd16-guide_lx*5'sd10;
     wire signed [15:0] guide_r=guide_y*6'sd16-guide_rx*5'sd10;
     wire [10:0] xy={1'b0,x}+{1'b0,y};
-    wire [9:0] sling_cx=x<10'd352 ? 10'd152 : 10'd568;
+    wire [6:0] selected_sling_x=x<10'd352 ? sling_left_x : sling_right_x;
+    wire [5:0] selected_sling_y=x<10'd352 ? sling_left_y : sling_right_y;
+    wire [9:0] sling_cx=10'd16+{selected_sling_x,3'b000};
+    wire [9:0] sling_cy=10'd32+{1'b0,selected_sling_y,3'b000};
     wire [9:0] sling_dx=x>=sling_cx ? x-sling_cx : sling_cx-x;
-    wire [9:0] sling_dy=y>=10'd360 ? y-10'd360 : 10'd360-y;
+    wire [9:0] sling_dy=y>=sling_cy ? y-sling_cy : sling_cy-y;
     wire [10:0] sling_sum={1'b0,sling_dx}+{1'b0,sling_dy};
     wire sling_hit=x<10'd352 ? hit_flash[9] : hit_flash[10];
-    wire signed [10:0] spinner_dx=$signed({1'b0,x})-11'sd352;
-    wire signed [10:0] spinner_dy=$signed({1'b0,y})-11'sd248;
+    wire signed [10:0] spinner_dx=$signed({1'b0,x})-$signed({1'b0,spinner_cx});
+    wire signed [10:0] spinner_dy=$signed({1'b0,y})-$signed({1'b0,spinner_cy});
     reg signed [3:0] spinner_slope;
     reg [5:0] spinner_half;
     always @* begin
@@ -309,8 +329,8 @@ module pinball_vga_renderer (
         endcase
     end
     wire signed [15:0] spinner_line=spinner_dy*4'sd4-spinner_dx*spinner_slope;
-    wire [9:0] spinner_absx=x>=352 ? x-352 : 352-x;
-    wire [9:0] spinner_absy=y>=248 ? y-248 : 248-y;
+    wire [9:0] spinner_absx=x>=spinner_cx ? x-spinner_cx : spinner_cx-x;
+    wire [9:0] spinner_absy=y>=spinner_cy ? y-spinner_cy : spinner_cy-y;
     wire [9:0] cursor_nx=10'd16+{cursor_x,3'b000};
     wire [9:0] cursor_ny=10'd32+{1'b0,cursor_y,3'b000};
     wire [10:0] charge_end=11'd272+({5'd0,charge}<<2);
@@ -354,71 +374,41 @@ module pinball_vga_renderer (
     wire in_button=button_active && x>=button_left && x<=button_right &&
         xy>=button_tl && xy<=button_br && x_minus_y<=button_tr && x_minus_y>=button_bl;
     wire [3:0] arrow_row=y[3] ? 4'd0-y[3:0] : y[3:0];
-    // Persistent original mascot: all states have a clear left-hand margin.
-    // Only fresh major events override its idle/blink/playful expression cycle.
-    localparam [2:0] CAT_IDLE=3'd0, CAT_HAPPY=3'd1, CAT_WINK=3'd2,
-                     CAT_PANIC=3'd3, CAT_SAD=3'd4, CAT_SLEEPY=3'd5;
-    wire cat_fresh=feature_timer>10'd120;
-    wire cat_relief=cat_fresh && feature_event==3'd4 && (state==PLAY || state==READY);
-    wire cat_panic=cat_fresh && feature_event==3'd6 && state==PLAY;
-    wire cat_reward=cat_fresh && state==PLAY &&
-        (feature_event==3'd1 || feature_event==3'd3 || feature_event==3'd5 || feature_event==3'd7);
-    wire cat_reaction=cat_relief || cat_panic || cat_reward;
-    wire [2:0] cat_mood=state==OVER ? CAT_SAD : state==PAUSE ? CAT_SLEEPY :
-        cat_panic ? CAT_PANIC : cat_relief ? CAT_WINK : cat_reward ? CAT_HAPPY :
-        anim[7:5]==3'd3 ? CAT_WINK : anim[7:5]==3'd5 ? CAT_HAPPY : CAT_IDLE;
-    wire cat_active=state<=OVER;
-    wire [9:0] cat_top=(state==READY ? 10'd184 : 10'd128)+{8'd0,anim[5],1'b0};
-    wire cat_box=x>=10'd64 && x<10'd112 && y>=cat_top && y<cat_top+10'd48;
-    wire [9:0] cat_dy=y-cat_top;
-    wire [4:0] cat_x=x[5:1],cat_y=cat_dy[5:1];
-    wire [47:0] cat_masks=circuit_cat_row(cat_y);
-    wire [23:0] cat_outline=cat_masks[47:24],cat_fill=cat_masks[23:0];
-    wire cat_blink=anim[6:2]==5'd0;
-    wire cat_left_eye=cat_x>=5 && cat_x<=9;
-    wire cat_right_eye=cat_x>=14 && cat_x<=18;
-    wire [9:0] cat_bubble_top=cat_top+10'd8;
-    wire [9:0] cat_caption_y=cat_top+10'd13;
-    wire comic_caption=cat_reaction && x>=124 && x<172 &&
-                       y>=cat_caption_y && y<cat_caption_y+7;
-    reg cat_ink;
-    reg [15:0] cat_pixel;
     wire [9:0] side_left_y=10'd32+{1'b0,side_left_y_fp[13:5]};
     wire [9:0] side_right_y=10'd32+{1'b0,side_right_y_fp[13:5]};
+    wire side_is_right=x>=10'd352;
+    wire [6:0] selected_side_x=side_is_right ? side_right_x : side_left_x;
+    wire [9:0] side_cx=10'd16+{selected_side_x,3'b000};
+    wire [9:0] side_cy=side_is_right ? side_right_y : side_left_y;
+    wire [9:0] side_dx=x>=side_cx ? x-side_cx : side_cx-x;
+    wire [9:0] side_dy=y>=side_cy ? y-side_cy : side_cy-y;
+    wire side_flash=side_is_right ? hit_flash[4] : hit_flash[3];
+    wire side_progress=side_is_right ? target_progress[1] : target_progress[0];
 
-    always @* begin
-        cat_ink=1'b0;
-        cat_pixel=CYAN;
-        if(cat_active && cat_box && cat_outline[5'd23-cat_x]) begin
-            cat_ink=1'b1;
-            cat_pixel=cat_fill[5'd23-cat_x] ? VIOLET : CYAN;
-            if(cat_y>=5'd3 && cat_y<=5'd6 &&
-               ((cat_x>=5'd3 && cat_x<=5'd5) || (cat_x>=5'd18 && cat_x<=5'd20))) cat_pixel=PINK;
-            if(cat_y==5'd15 && ((cat_x>=5'd3 && cat_x<=5'd6) ||
-               (cat_x>=5'd17 && cat_x<=5'd20))) cat_pixel=PINK;
-            if(cat_y>=5'd10 && cat_y<=5'd14 && (cat_left_eye || cat_right_eye)) begin
-                if(cat_blink || cat_mood==CAT_SLEEPY || (cat_mood==CAT_WINK && cat_left_eye)) begin
-                    if(cat_y==5'd12) cat_pixel=WHITE;
-                end else if(cat_mood==CAT_HAPPY) begin
-                    if(cat_y==5'd12 || cat_x==5'd7 || cat_x==5'd16) cat_pixel=GOLD;
-                    if(cat_y==5'd12 && (cat_x==5'd7 || cat_x==5'd16)) cat_pixel=WHITE;
-                end else if(cat_mood==CAT_SAD) begin
-                    if(cat_y==5'd13 || ((cat_x==5'd7 || cat_x==5'd16) && cat_y==5'd14)) cat_pixel=16'h05BF;
-                end else if(cat_y>=5'd11 && cat_y<=5'd13) cat_pixel=WHITE;
-            end
-            if(cat_mood==CAT_PANIC) begin
-                if(cat_x>=5'd10 && cat_x<=5'd13 && cat_y>=5'd16 && cat_y<=5'd19)
-                    cat_pixel=(cat_x==5'd10 || cat_x==5'd13 || cat_y==5'd16 || cat_y==5'd19) ? WHITE : PINK;
-                if(cat_x>=5'd21 && cat_y>=5'd5 && cat_y<=5'd8) cat_pixel=CYAN;
-            end else if(cat_mood==CAT_SAD) begin
-                if((cat_y==5'd17 && cat_x>=5'd10 && cat_x<=5'd13) ||
-                   (cat_y==5'd18 && (cat_x==5'd9 || cat_x==5'd14))) cat_pixel=WHITE;
-            end else if(cat_mood==CAT_SLEEPY) begin
-                if(cat_y==5'd18 && (cat_x==5'd11 || cat_x==5'd12)) cat_pixel=PINK;
-            end else if((cat_y==5'd18 && cat_x>=5'd10 && cat_x<=5'd13) ||
-                       (cat_y==5'd17 && (cat_x==5'd9 || cat_x==5'd14))) cat_pixel=WHITE;
-        end
-    end
+    // The selected center feeds one native-pixel radial path for both holes.
+    // max(|dx|,|dy|)+min(|dx|,|dy|)/2 makes concentric octagons cheaply.
+    wire [9:0] black_portal_cx=10'd16+{black_hole_x,3'b000};
+    wire [9:0] black_portal_cy=10'd32+{1'b0,black_hole_y,3'b000};
+    wire portal_is_black={1'b0,x}+11'd28>={1'b0,black_portal_cx} &&
+        {1'b0,x}<={1'b0,black_portal_cx}+11'd28 &&
+        {1'b0,y}+11'd28>={1'b0,black_portal_cy} &&
+        {1'b0,y}<={1'b0,black_portal_cy}+11'd28;
+    wire [6:0] portal_logical_x=portal_is_black ? black_hole_x : white_hole_x;
+    wire [5:0] portal_logical_y=portal_is_black ? black_hole_y : white_hole_y;
+    wire [9:0] portal_cx=10'd16+{portal_logical_x,3'b000};
+    wire [9:0] portal_cy=10'd32+{1'b0,portal_logical_y,3'b000};
+    wire [9:0] portal_dx=x>=portal_cx ? x-portal_cx : portal_cx-x;
+    wire [9:0] portal_dy=y>=portal_cy ? y-portal_cy : portal_cy-y;
+    wire [9:0] portal_max=portal_dx>=portal_dy ? portal_dx : portal_dy;
+    wire [9:0] portal_min=portal_dx>=portal_dy ? portal_dy : portal_dx;
+    wire [10:0] portal_radius={1'b0,portal_max}+{2'b00,portal_min[9:1]};
+    wire [2:0] portal_sector=y<portal_cy ?
+        (x>=portal_cx ? (portal_dx>=portal_dy ? 3'd0 : 3'd1) :
+                       (portal_dx<portal_dy ? 3'd2 : 3'd3)) :
+        (x<portal_cx ? (portal_dx>=portal_dy ? 3'd4 : 3'd5) :
+                      (portal_dx<portal_dy ? 3'd6 : 3'd7));
+    wire [2:0] portal_heading=portal_is_black ? portal_anim[7:5] : ~portal_anim[7:5];
+    wire portal_arc=portal_sector==portal_heading;
 
     // A single font decoder serves HUD, instructions and transient feedback.
     reg text_enable;
@@ -426,14 +416,13 @@ module pinball_vga_renderer (
     reg [1:0] text_scale;
     reg [5:0] text_message;
     reg [15:0] text_color;
-    reg trail_hit;
     reg [9:0] text_dx,text_dy;
     reg [5:0] text_index;
     reg [2:0] glyph_x,glyph_y;
     reg [7:0] glyph;
     reg [34:0] glyph_bits;
     integer i;
-    reg [9:0] fx,fy,px,py,tx,ty,lamp_x,object_x;
+    reg [9:0] fx,fy,px,py,tx,ty,lamp_x,object_x,object_y;
     reg [3:0] pl;
     reg [2:0] object_id;
     reg [15:0] lamp_color;
@@ -442,11 +431,10 @@ module pinball_vga_renderer (
         pixel=NIGHT;
         text_enable=1'b0;
         text_x=0; text_y=0; text_scale=0; text_message=0; text_color=WHITE;
-        trail_hit=1'b0;
         text_dx=0; text_dy=0; text_index=0;
         glyph_x=7; glyph_y=7; glyph=32; glyph_bits=0;
         fx=0; fy=0; px=0; py=0; tx=0; ty=0;
-        pl=0; lamp_x=0; object_x=0; object_id=0; lamp_color=MUTED;
+        pl=0; lamp_x=0; object_x=0; object_y=0; object_id=0; lamp_color=MUTED;
 
         // Subdued grid and sparse twinkling lights leave the ball easy to read.
         if(x>=16 && x<=783 && y>=32 && y<=543) begin
@@ -462,12 +450,23 @@ module pinball_vga_renderer (
         if((y==32 || y==543) && x>=16 && x<=783)
             pixel=x[7:4]==anim[7:4] ? CYAN_DARK : VIOLET;
 
-        // Persistent face remains below the entire physical table and trails.
-        if(cat_ink) pixel=cat_pixel;
-        if(cat_reaction && x>=116 && x<=184 && y>=cat_bubble_top && y<=cat_bubble_top+16) begin
-            pixel=PANEL;
-            if(x==116 || x==184 || y==cat_bubble_top || y==cat_bubble_top+16)
-                pixel=cat_panic ? CYAN : PINK;
+        // Layered octagonal rings retain native resolution on the monitor.
+        // A dark singularity and a luminous white core distinguish the pair.
+        if(portals_visible && portal_radius<=11'd28) begin
+            if(portal_radius>=11'd25) begin
+                if(portal_arc || portal_flash!=5'd0)
+                    pixel=portal_is_black ? 16'h631F : 16'hC546;
+                else if(portal_radius<=11'd26)
+                    pixel=portal_is_black ? 16'h280E : 16'h5143;
+            end else if(portal_radius>=11'd21) begin
+                pixel=portal_arc || portal_flash!=5'd0 ? WHITE :
+                    portal_is_black ? PINK : GOLD;
+            end else if(portal_radius>=11'd17) begin
+                pixel=portal_is_black ? 16'h180B : 16'h6200;
+                if(portal_arc) pixel=portal_is_black ? CYAN : WHITE;
+            end else if(portal_radius>=11'd12) begin
+                pixel=portal_is_black ? (portal_arc ? 16'h3018 : 16'h1008) : 16'hFFB1;
+            end else pixel=portal_is_black ? 16'h0000 : WHITE;
         end
 
         // Oldest first: fresh samples stay bright where their squares overlap.
@@ -475,7 +474,6 @@ module pinball_vga_renderer (
         for(i=7;i>=0;i=i-1) begin
             tx=trail_x[i*10+:10]; ty=trail_y[i*10+:10];
             if(state==PLAY && trail_valid[i] && x+3>=tx && x<=tx+3 && y+3>=ty && y<=ty+3) begin
-                trail_hit=1'b1;
                 pixel=save_protected ? (i<2 ? 16'h04DF : i<5 ? 16'h0359 : 16'h0212) :
                       (i<2 ? 16'h4DF9 : i<5 ? 16'h2353 : 16'h194B);
             end
@@ -524,37 +522,37 @@ module pinball_vga_renderer (
         for(i=0;i<3;i=i+1) begin
             object_x=216+i*136;
             lamp_color=table_progress[i] ? GOLD : CYAN_DARK;
-            if(x>=object_x-18 && x<=object_x+18 && y>=126 && y<=162 &&
-                (x==object_x-18 || x==object_x+18 || y==126 || y==162))
+            if(x>=object_x-18 && x<=object_x+18 && y>=rollover_cy-18 && y<=rollover_cy+18 &&
+                (x==object_x-18 || x==object_x+18 || y==rollover_cy-18 || y==rollover_cy+18))
                 pixel=table_progress[i] ? 16'h6200 : VIOLET;
-            if(x>=object_x-16 && x<=object_x+16 && y>=128 && y<=160 &&
-                (x==object_x-16 || x==object_x+16 || y==128 || y==160)) pixel=lamp_color;
-            if(x>=object_x-8 && x<=object_x+8 && y>=142 && y<=146)
+            if(x>=object_x-16 && x<=object_x+16 && y>=rollover_cy-16 && y<=rollover_cy+16 &&
+                (x==object_x-16 || x==object_x+16 || y==rollover_cy-16 || y==rollover_cy+16)) pixel=lamp_color;
+            if(x>=object_x-8 && x<=object_x+8 && y>=rollover_cy-2 && y<=rollover_cy+2)
                 pixel=hit_flash[5+i] ? WHITE : (table_progress[i] ? GOLD : MUTED);
         end
-        // Three small stand-up targets occupy a compact row between bumpers.
+        // A horizontal bank, cascade or staircase uses the same three IDs.
         for(i=0;i<3;i=i+1) begin
-            object_x=288+i*64;
-            if(x>=object_x-10 && x<=object_x+10 && y>=182 && y<=202)
+            case(i)
+                0: begin object_x=bank_start_x; object_y=bank_cy; end
+                1: begin object_x=bank1_cx; object_y=bank1_cy; end
+                default: begin object_x=bank2_cx; object_y=bank2_cy; end
+            endcase
+            if(x>=object_x-10 && x<=object_x+10 && y>=object_y-10 && y<=object_y+10)
                 pixel=hit_flash[11+i] ? PINK : VIOLET;
-            if(x>=object_x-8 && x<=object_x+8 && y>=184 && y<=200) begin
+            if(x>=object_x-8 && x<=object_x+8 && y>=object_y-8 && y<=object_y+8) begin
                 pixel=table_progress[3+i] ? GOLD : PINK;
-                if(x>=object_x-4 && x<=object_x+4 && y>=188 && y<=196)
+                if(x>=object_x-4 && x<=object_x+4 && y>=object_y-4 && y<=object_y+4)
                     pixel=hit_flash[11+i] ? WHITE : (table_progress[3+i] ? ORANGE : 16'h800D);
-                if(y==184) pixel=WHITE;
+                if(y==object_y-8) pixel=WHITE;
             end
         end
         // Q8 motion resolves 1/8 of a logical pixel here. Face shading and
         // completion lamps translate with the same captured collision centre.
-        if(((x>=56 && x<=72) && y>=side_left_y-10'd24 && y<=side_left_y+10'd24) ||
-           ((x>=632 && x<=648) && y>=side_right_y-10'd24 && y<=side_right_y+10'd24)) begin
+        if(side_dx<=10'd8 && side_dy<=10'd24) begin
             pixel=PINK;
-            if((x>=61 && x<=67 && y>=side_left_y-10'd16 && y<=side_left_y+10'd16) ||
-               (x>=637 && x<=643 && y>=side_right_y-10'd16 && y<=side_right_y+10'd16))
-                pixel=x<352 ? (hit_flash[3] ? WHITE : (target_progress[0] ? GOLD : 16'h700D)) :
-                    (hit_flash[4] ? WHITE : (target_progress[1] ? GOLD : 16'h700D));
-            if((x<352 && (y==side_left_y-10'd24 || x==56)) ||
-               (x>=352 && (y==side_right_y-10'd24 || x==632))) pixel=WHITE;
+            if(side_dx<=10'd3 && side_dy<=10'd16)
+                pixel=side_flash ? WHITE : (side_progress ? GOLD : 16'h700D);
+            if(y==side_cy-10'd24 || x==side_cx-10'd8) pixel=WHITE;
         end
 
         // Energetic diamond slingshots: Manhattan radius three, matching physics.
@@ -562,7 +560,7 @@ module pinball_vga_renderer (
             pixel=sling_hit ? WHITE : PINK;
             if(sling_sum<=16) pixel=sling_hit ? GOLD : 16'h800D;
             if(sling_sum<=8) pixel=sling_hit ? WHITE : 16'hD019;
-            if(y<360 && sling_sum>=18) pixel=WHITE;
+            if(y<sling_cy && sling_sum>=18) pixel=WHITE;
         end
         if(sling_sum>=26 && sling_sum<=32 && sling_dx<=32 && sling_dy<=32)
             pixel=sling_hit ? PINK : VIOLET;
@@ -575,8 +573,8 @@ module pinball_vga_renderer (
 
         // Dim dashed rails identify the two moving bumper routes without
         // resembling solid collision walls. Object bodies cover their paths.
-        if((x>=223 && x<=225 && y>=208 && y<=256 && y[3:0]<3) ||
-           (y>=207 && y<=209 && x>=480 && x<=544 && x[3:0]<3)) pixel=16'h126B;
+        if((x+1>=left_bumper_cx && x<=left_bumper_cx+1 && y>=track_y_min && y<=track_y_max && y[3:0]<3) ||
+           (y+1>=right_bumper_cy && y<=right_bumper_cy+1 && x>=track_x_min && x<=track_x_max && x[3:0]<3)) pixel=16'h126B;
         if(near_bumper) begin
             if(bumper_r2>=625 && bumper_r2<=1024)
                 pixel=lit_bumper ? 16'h6200 : (anim[4] ? VIOLET_LIGHT : VIOLET);
@@ -785,8 +783,6 @@ module pinball_vga_renderer (
                 end
             end
         end
-        // Opaque modal panels cannot erase the mascot in the reserved margin.
-        if((state==MENU || state==PAUSE || state==OVER) && cat_ink) pixel=cat_pixel;
         // All visible button backgrounds share one bounded/chamfered path.
         // Hover uses the actual logical control contracts, never a hidden cursor.
         if(in_button) begin
@@ -799,13 +795,6 @@ module pinball_vga_renderer (
         if(button_level && y>=297 && y<=311 &&
            ((x>=216 && x<=223 && x[2:0]==arrow_row[2:0]) ||
             (x>=576 && x<=583 && (~x[2:0])==arrow_row[2:0]))) pixel=CYAN;
-        // Decode the caption independently of trail tests. Gate only the
-        // final ink so a trail path never runs through the shared font ROM.
-        if(comic_caption) begin
-            text_enable=1; text_x=124; text_y=cat_caption_y; text_scale=0;
-            text_message=feature_event==6 ? 49 : feature_event==4 ? 50 : 48;
-            text_color=WHITE;
-        end
         text_dx=x-text_x; text_dy=y-text_y;
         case(text_scale)
             0:begin text_index=text_dx[8:3]; glyph_x=text_dx[2:0]; glyph_y=text_dy[2:0]; end
@@ -822,8 +811,7 @@ module pinball_vga_renderer (
         if(text_message==43 && text_index==6) glyph="S";
         if(text_message==4 && x>=714 && x<730 && y<32) glyph=difficulty==0 ? "E" : difficulty==1 ? "N" : "H";
         glyph_bits=font_5x7(glyph);
-        if(text_enable && glyph_x<5 && glyph_y<7 && glyph_bits[34-(glyph_y*5)-glyph_x] &&
-           (!comic_caption || !trail_hit)) pixel=text_color;
+        if(text_enable && glyph_x<5 && glyph_y<7 && glyph_bits[34-(glyph_y*5)-glyph_x]) pixel=text_color;
         if(cursor_visible && x>=cursor_nx && x<cursor_nx+13 && y>=cursor_ny && y<cursor_ny+17) begin
             fx=x-cursor_nx; fy=y-cursor_ny;
             if(fx<=fy && fx<10) begin

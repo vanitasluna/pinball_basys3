@@ -70,6 +70,7 @@ module My_Top_Module (
     reg [2:0] mouse_prev;
     reg mouse_seen;
     reg mouse_event_d;
+    reg [4:0] mouse_release_wait;
     reg [6:0] mouse_cursor_x=7'd48;
     reg [5:0] mouse_cursor_y=6'd32;
     wire [6:0] packet_cursor_x=mouse_x>12'd383 ? 7'd95 : mouse_x[8:2];
@@ -77,6 +78,7 @@ module My_Top_Module (
     always @(posedge clk) begin
         if(reset) begin
             mouse_prev<=0; mouse_seen<=0; mouse_event_d<=0;
+            mouse_release_wait<=0;
             mouse_cursor_x<=48; mouse_cursor_y<=32;
         end
         else begin
@@ -86,6 +88,20 @@ module My_Top_Module (
             if(mouse_event_d) begin
                 mouse_prev<={mouse_right,mouse_middle,mouse_left};
                 mouse_cursor_x<=packet_cursor_x; mouse_cursor_y<=packet_cursor_y;
+                mouse_release_wait<=0;
+            end else if(!(mouse_right || mouse_middle || mouse_left) && |mouse_prev) begin
+                // MouseCtl clears its buttons during an internal reconnect,
+                // without publishing a completed release packet. Retire that
+                // stale hold after 32 ticks (~133 ms). A stationary held mouse
+                // stays raw-high, so normal holds never expire. Complete
+                // packets always win, including a normal button release.
+                if(tick) begin
+                    if(&mouse_release_wait) begin
+                        mouse_prev<=0; mouse_seen<=0; mouse_release_wait<=0;
+                    end else mouse_release_wait<=mouse_release_wait+1'b1;
+                end
+            end else begin
+                mouse_release_wait<=0;
             end
             if(mouse_event) mouse_seen<=1;
         end
@@ -153,6 +169,13 @@ module My_Top_Module (
         .combo(combo),.mission_progress(mission_progress),.target_progress(target_progress),
         .save_timer(save_timer),.feature_event(feature_event),.feature_timer(feature_timer),
         .last_award_bcd(last_award_bcd),.table_progress(table_progress),.spinner_phase(spinner_phase));
+    wire [5:0] selected_layout,layout_id;
+    // D/menu has priority over start, matching the rule controller. A map
+    // changes only for a new game, never for a paid life or a saved relaunch.
+    pinball_map_select maps(.clk(clk),.reset(reset),
+        .new_game((state==MENU || state==OVER) &&
+            (button_press[0] || mouse_start) && !button_press[4]),
+        .selected_layout(selected_layout));
     wire [6:0] ball_x,ball2_x;
     wire [5:0] ball_y,ball2_y;
     wire [1:0] balls_visible;
@@ -163,7 +186,12 @@ module My_Top_Module (
     wire [13:0] moving_bumper_y_fp;
     wire [14:0] moving_bumper_x_fp;
     wire [13:0] side_left_y_fp,side_right_y_fp;
+    wire [1:0] black_slot,white_slot,teleported;
+    wire [4:0] portal_flash;
+    wire [7:0] portal_anim;
+    wire portals_visible=state==READY || state==PLAY || state==PAUSE;
     pinball_physics physics(.clk(clk),.reset(reset),.tick(tick),.active(active),
+        .selected_layout(selected_layout),.layout_id(layout_id),
         .two_ball_mode(two_ball_mode),.balls_visible(balls_visible),.hit_ball(hit_ball),
         .prepare(prepare),.launch(launch),.launch_power(charge),.difficulty(difficulty),
         .left_pressed(left_pressed),.right_pressed(right_pressed),.nudge(nudge_request),
@@ -172,6 +200,8 @@ module My_Top_Module (
         .ball2_x(ball2_x),.ball2_y(ball2_y),.ball2_x_fp(ball2_x_fp),.ball2_y_fp(ball2_y_fp),
         .moving_bumper_y_fp(moving_bumper_y_fp),.moving_bumper_x_fp(moving_bumper_x_fp),
         .side_left_y_fp(side_left_y_fp),.side_right_y_fp(side_right_y_fp),
+        .black_slot(black_slot),.white_slot(white_slot),.portal_flash(portal_flash),
+        .portal_anim(portal_anim),.teleported(teleported),
         .drained(drained),.hit_events(hit_events),.in_lane(in_lane));
     wire [79:0] particle_x,particle_y,trail_x,trail_y;
     wire [31:0] particle_life;
@@ -182,12 +212,14 @@ module My_Top_Module (
     reg previous_gold_trail=0;
     // The producer and effects run on the same edge. Mask old history during
     // handoff so even that first bundle cannot pair a survivor with stale trails.
-    wire [7:0] scene_trail_valid=(gold_trail!=previous_gold_trail || balls_visible==0) ? 8'd0 : trail_valid;
+    wire followed_teleported=balls_visible[0] ? teleported[0] : teleported[1];
+    wire trail_handoff=gold_trail!=previous_gold_trail || followed_teleported;
+    wire [7:0] scene_trail_valid=(trail_handoff || balls_visible==0) ? 8'd0 : trail_valid;
     always @(posedge clk)
         if(reset || prepare) previous_gold_trail<=0;
         else previous_gold_trail<=gold_trail;
     pinball_effects effects(.clk(clk),.reset(reset),.tick(tick),.active(active),.prepare(prepare),
-        .hit_enable(state==PLAY || state==PAUSE),.trail_reset(gold_trail!=previous_gold_trail),
+        .hit_enable(state==PLAY || state==PAUSE),.trail_reset(trail_handoff),
         .hit_events(hit_events),
         .ball_x_fp(balls_visible[0] ? ball_x_fp : ball2_x_fp),
         .ball_y_fp(balls_visible[0] ? ball_y_fp : ball2_y_fp),
@@ -206,18 +238,19 @@ module My_Top_Module (
         cursor_x,cursor_y,sw_sync[0] && mouse_seen};
     wire [57:0] live_features={combo,mission_progress,target_progress,save_timer,
         feature_event,feature_timer,last_award_bcd,table_progress,spinner_phase};
-    reg [345:0] oled_scene,oled_transfer;
-    reg [638:0] vga_scene,vga_transfer;
+    wire [17:0] live_portals={black_slot,white_slot,portal_flash,portal_anim,portals_visible};
+    reg [369:0] oled_scene,oled_transfer;
+    reg [662:0] vga_scene,vga_transfer;
     // Register derived graphics fields in the 100 MHz producer domain.
     // The 100-to-40 MHz crossing then has only register/wiring delay,
     // rather than position scaling or hit-flash decoding in its 5 ns window.
     always @(posedge clk) begin
         if(reset) begin oled_transfer<=0;vga_transfer<=0;end
         else begin
-            oled_transfer<={live_scene,live_features,display_two_ball_mode,balls_visible,ball2_x,ball2_y,
+            oled_transfer<={live_portals,layout_id,live_scene,live_features,display_two_ball_mode,balls_visible,ball2_x,ball2_y,
                 moving_bumper_y_fp,moving_bumper_x_fp,side_left_y_fp,side_right_y_fp,
                 oled_trail_x,oled_trail_y,scene_trail_valid};
-            vga_transfer<={live_scene,live_features,display_two_ball_mode,balls_visible,ball2_x_fp,ball2_y_fp,
+            vga_transfer<={live_portals,layout_id,live_scene,live_features,display_two_ball_mode,balls_visible,ball2_x_fp,ball2_y_fp,
                 moving_bumper_y_fp,moving_bumper_x_fp,side_left_y_fp,side_right_y_fp,ball_x_fp,ball_y_fp,
                 particle_x,particle_y,particle_life,trail_x,trail_y,scene_trail_valid};
         end
@@ -251,7 +284,16 @@ module My_Top_Module (
         .hsync(Hsync),.vsync(Vsync));
 endmodule
 
-module pinball_scene(input wire [345:0] scene,input wire [6:0] x,input wire [5:0] y,output wire [15:0] pixel);
+module pinball_scene(input wire [369:0] scene,input wire [6:0] x,input wire [5:0] y,output wire [15:0] pixel);
+    wire [5:0] layout_id;
+    wire [1:0] black_slot,white_slot;
+    wire [4:0] portal_flash;
+    wire [7:0] portal_anim;
+    wire portals_visible;
+    wire [6:0] black_hole_x,white_hole_x;
+    wire [5:0] black_hole_y,white_hole_y;
+    pinball_portal_position black_position(.layout_id(layout_id),.slot(black_slot),.x(black_hole_x),.y(black_hole_y));
+    pinball_portal_position white_position(.layout_id(layout_id),.slot(white_slot),.x(white_hole_x),.y(white_hole_y));
     wire [13:0] moving_bumper_y_fp;
     wire [14:0] moving_bumper_x_fp;
     wire [13:0] side_left_y_fp,side_right_y_fp;
@@ -277,14 +319,16 @@ module pinball_scene(input wire [345:0] scene,input wire [6:0] x,input wire [5:0
     wire [55:0] oled_trail_x;
     wire [47:0] oled_trail_y;
     wire [7:0] trail_valid;
-    assign {state,ball_x,ball_y,left_angle,right_angle,score_bcd,high_bcd,lives,
+    assign {black_slot,white_slot,portal_flash,portal_anim,portals_visible,layout_id,state,ball_x,ball_y,left_angle,right_angle,score_bcd,high_bcd,lives,
         difficulty,charge,hit_flash,bonus_target,bonus_active,anim,cursor_x,cursor_y,
         cursor_visible,combo,mission_progress,target_progress,save_timer,
         feature_event,feature_timer,last_award_bcd,table_progress,spinner_phase,
         two_ball_mode,balls_visible,ball2_x,ball2_y,
         moving_bumper_y_fp,moving_bumper_x_fp,side_left_y_fp,side_right_y_fp,
         oled_trail_x,oled_trail_y,trail_valid}=scene;
-    pinball_renderer graphics(.x(x),.y(y),.state(state),.ball_x(ball_x),.ball_y(ball_y),
+    pinball_renderer graphics(.x(x),.y(y),.layout_id(layout_id),.state(state),.ball_x(ball_x),.ball_y(ball_y),
+        .black_hole_x(black_hole_x),.black_hole_y(black_hole_y),.white_hole_x(white_hole_x),.white_hole_y(white_hole_y),
+        .portal_flash(portal_flash),.portal_anim(portal_anim),.portals_visible(portals_visible),
         .two_ball_mode(two_ball_mode),.balls_visible(balls_visible),.ball2_x(ball2_x),.ball2_y(ball2_y),
         .left_angle(left_angle),.right_angle(right_angle),.score_bcd(score_bcd),
         .high_bcd(high_bcd),.lives(lives),.difficulty(difficulty),.charge(charge),
@@ -298,7 +342,16 @@ module pinball_scene(input wire [345:0] scene,input wire [6:0] x,input wire [5:0
         .oled_trail_x(oled_trail_x),.oled_trail_y(oled_trail_y),.trail_valid(trail_valid),.pixel(pixel));
 endmodule
 
-module pinball_vga_scene(input wire [638:0] scene,input wire [9:0] x,y,output wire [15:0] pixel);
+module pinball_vga_scene(input wire [662:0] scene,input wire [9:0] x,y,output wire [15:0] pixel);
+    wire [5:0] layout_id;
+    wire [1:0] black_slot,white_slot;
+    wire [4:0] portal_flash;
+    wire [7:0] portal_anim;
+    wire portals_visible;
+    wire [6:0] black_hole_x,white_hole_x;
+    wire [5:0] black_hole_y,white_hole_y;
+    pinball_portal_position black_position(.layout_id(layout_id),.slot(black_slot),.x(black_hole_x),.y(black_hole_y));
+    pinball_portal_position white_position(.layout_id(layout_id),.slot(white_slot),.x(white_hole_x),.y(white_hole_y));
     wire [2:0] state,left_angle,right_angle,combo,mission_progress,feature_event;
     wire [6:0] ball_x,cursor_x;
     wire [5:0] ball_y,charge,cursor_y;
@@ -322,7 +375,7 @@ module pinball_vga_scene(input wire [638:0] scene,input wire [9:0] x,y,output wi
     wire [13:0] side_left_y_fp,side_right_y_fp;
     wire [79:0] particle_x,particle_y,trail_x,trail_y;
     wire [31:0] particle_life;
-    assign {state,ball_x,ball_y,left_angle,right_angle,score_bcd,high_bcd,lives,
+    assign {black_slot,white_slot,portal_flash,portal_anim,portals_visible,layout_id,state,ball_x,ball_y,left_angle,right_angle,score_bcd,high_bcd,lives,
         difficulty,charge,hit_flash,bonus_target,bonus_active,anim,cursor_x,cursor_y,
         cursor_visible,combo,mission_progress,target_progress,save_timer,feature_event,
         feature_timer,last_award_bcd,table_progress,spinner_phase,
@@ -330,7 +383,9 @@ module pinball_vga_scene(input wire [638:0] scene,input wire [9:0] x,y,output wi
         moving_bumper_y_fp,moving_bumper_x_fp,side_left_y_fp,side_right_y_fp,
         ball_x_fp,ball_y_fp,particle_x,particle_y,
         particle_life,trail_x,trail_y,trail_valid}=scene;
-    pinball_vga_renderer graphics(.x(x),.y(y),.state(state),.ball_x_fp(ball_x_fp),
+    pinball_vga_renderer graphics(.x(x),.y(y),.layout_id(layout_id),.state(state),.ball_x_fp(ball_x_fp),
+        .black_hole_x(black_hole_x),.black_hole_y(black_hole_y),.white_hole_x(white_hole_x),.white_hole_y(white_hole_y),
+        .portal_flash(portal_flash),.portal_anim(portal_anim),.portals_visible(portals_visible),
         .two_ball_mode(two_ball_mode),.balls_visible(balls_visible),.ball2_x_fp(ball2_x_fp),.ball2_y_fp(ball2_y_fp),
         .ball_y_fp(ball_y_fp),.left_angle(left_angle),.right_angle(right_angle),
         .score_bcd(score_bcd),.high_bcd(high_bcd),.lives(lives),.difficulty(difficulty),
